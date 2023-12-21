@@ -46,11 +46,22 @@ Setup a new environment and install the most recent version of [pytorch](https:/
 followed by these libraries
 ```bash
 pip install packaging
-pip install transformers==4.35.0 datasets==2.14.4 sentencepiece==0.1.99 flash-attn==2.3.3 wandb
+pip install transformers==4.35.0 datasets==2.15.0 sentencepiece==0.1.99 flash-attn==2.3.3 wandb
 # Flash rotary embeddings (requires setting correct CUDA_HOME variable)
 pip install git+https://github.com/Dao-AILab/flash-attention.git#subdirectory=csrc/rotary
+pip install peft
 
 ```
+
+### Corrections to the requirements:
+1. If you have CUDA <12 (my is 11.8), install
+``` pip install flash-attn==2.3.1.post1 ```
+https://github.com/Dao-AILab/flash-attention/issues/631#issuecomment-1820931085
+
+2. If you encounter problems with LocalFilesystem during dataset loading (for datasets 2.14.4),
+``` pip install --upgrade datasets ```
+3. transformers 4.35 does not have attribute do_grad_scaling and cause the falling.
+I downgraded to 4.34.0
 
 ### Training
 `train.sh` is the main method for training AutoCompressors and defines the most important hyperparameters for `train.py`.

@@ -4,11 +4,14 @@ nvidia-smi
 #base_model=${BASE:-"Llama-2-7b-hf"}
 #model_url="meta-llama/${base_model}"
 #run_name="LLaMA-2-7b"
-base_model=${BASE:-"princeton-nlp/Sheared-LLaMA-1.3B"}
+#base_model=${BASE:-"princeton-nlp/Sheared-LLaMA-1.3B"}
+#model_url=${base_model}
+#run_name="LLaMA-1.3B"
+base_model=${BASE:-"facebook/opt-350m"}
 model_url=${base_model}
-run_name="LLaMA-1.3B"
+run_name="opt-350m"
 total=${BATCH:-32}      # total batch size
-bs=${SEQ:-2}            # batch size per device
+bs=${SEQ:-1}            # batch size per device
 lr=${LR:-8e-4}
 warmup_steps=${WU:-5000}
 save_steps=${SAVE:-5000}
@@ -53,8 +56,8 @@ export WANDB_DIR=$out_dir
 export WANDB_PROJECT="autocompressors"
 
 export OMP_NUM_THREADS=8
-ACCELERATE_CONFIG_FILE=/home/galimzyanov/AutoCompressors/configs/accelerate_4gpu.yaml
-header="accelerate launch train.py"
+ACCELERATE_CONFIG_FILE=/home/galimzyanov/AutoCompressors/configs/accelerate_1gpu.yaml
+header="accelerate launch --config_file $ACCELERATE_CONFIG_FILE train.py"
 
 #header="torchrun \
 #--nnodes=$num_nodes \
@@ -62,7 +65,6 @@ header="accelerate launch train.py"
 #--rdzv-backend=c10d \
 #--rdzv-endpoint=$node:5546 \
 #train.py "
-
 
 arguments=(
     --report_to wandb

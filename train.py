@@ -13,6 +13,7 @@ from transformers import (
     HfArgumentParser,
     set_seed,
 )
+import pydevd_pycharm
 
 from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
@@ -32,7 +33,7 @@ require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/lang
 
 logger = logging.getLogger(__name__)
 
-
+# pydevd_pycharm.settrace("localhost", port=2000, stdoutToServer=True, stderrToServer=True)
 def main():
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
@@ -161,13 +162,13 @@ def main():
 
     # Create model
     if "llama" in (model_args.model_name_or_path or model_args.config_name).lower():
-        from auto_compressor import LlamaAutoCompressorModel
+        from auto_compressor import LlamaAutoCompressorModel as AutoCompressorModel
     else:
         from auto_compressor import AutoCompressorModel
 
     if model_args.model_name_or_path:
         half_dtype = (torch.bfloat16 if training_args.bf16 else (torch.float16 if training_args.fp16 else None))
-        model = LlamaAutoCompressorModel.from_pretrained(
+        model = AutoCompressorModel.from_pretrained(
             model_args.model_name_or_path,
             from_tf=bool(".ckpt" in model_args.model_name_or_path),
             config=config,
@@ -177,7 +178,7 @@ def main():
             torch_dtype=(half_dtype if model_args.lora or model_args.lora_path else None),
         )
     else:
-        model = LlamaAutoCompressorModel.from_config(config)
+        model = AutoCompressorModel.from_config(config)
         n_params = sum(dict((p.data_ptr(), p.numel()) for p in model.parameters()).values())
         logger.info(f"Training new model from scratch - Total size={n_params/2**20:.2f}M params")
 
@@ -228,6 +229,7 @@ def main():
         train_dataset=train_dataset if training_args.do_train else None,
         eval_dataset=eval_dataset if training_args.do_eval else None,
         tokenizer=tokenizer,
+        # callbacks=[GradientLoggerCallback]
     )
 
     if last_checkpoint is not None:

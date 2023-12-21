@@ -34,3 +34,15 @@ def parse_checkpoint_step(checkpoint):
         except:
             print(f"got checkpoint name {checkpoint}, couldn't parse step")
             return -1
+
+def calc_grad(model):
+    total_norm = 0.0
+    num_parameters = 0
+    for p in model.parameters():
+        if p.requires_grad and p.grad is not None:
+            param_norm = p.grad.data.norm(2)
+            total_norm += param_norm.item()**2
+            num_parameters += p.numel()
+    total_norm = (total_norm**0.5) / (num_parameters+1)
+
+    return total_norm

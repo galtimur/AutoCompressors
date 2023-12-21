@@ -6,7 +6,7 @@ import math
 import torch
 from torch import nn
 from torch.utils.data import Dataset
-
+from utils import calc_grad
 
 from transformers.trainer_utils import EvalPrediction
 
@@ -163,7 +163,8 @@ class SubstepTrainer(BaseTrainer):
         with self.compute_loss_context_manager():
             out = model(**inputs, softprompt=softprompt, segment_lengths=segment_lengths, use_cache=False, output_softprompt=True)
             loss = out.loss
-            softprompt = out.softprompt.detach()
+            # TODO fix it properly not to move bf16-fp32-bf16 every time
+            softprompt = out.softprompt.detach().bfloat16()
         if self.args.n_gpu > 1:
             loss = loss.mean()  # mean() to average on multi-gpu parallel training
 
@@ -171,10 +172,9 @@ class SubstepTrainer(BaseTrainer):
             # deepspeed handles loss scaling by gradient_accumulation_steps in its `backward`
             loss = loss / self.args.gradient_accumulation_steps
 
-        if self.do_grad_scaling:
-            self.scaler.scale(loss).backward()
-
-        elif self.deepspeed:
+        # if True or self.do_grad_scaling:
+        #     self.scaler.scale(loss).backward()
+        if self.deepspeed:
             # loss gets scaled under gradient_accumulation_steps in deepspeed
             loss = self.deepspeed.backward(loss)
         else:
@@ -202,6 +202,8 @@ class SubstepTrainer(BaseTrainer):
             if self.log_count % self.args.gradient_accumulation_steps == 0:
                 self.substep_count = self.substep_count.to(loss.device)
                 self.loss_log["total_substeps"] = self._nested_gather(self.substep_count).sum().item()
+                grad_norm = calc_grad(model)
+                self.loss_log["grad_norm"] = grad_norm
                 for i in range(self.args.training_substeps):
                     self.loss_log[f"substep_{i}"] = self._nested_gather(self.loss_log[f"substep_{i}"]).mean().item()
                 self.log(self.loss_log)
