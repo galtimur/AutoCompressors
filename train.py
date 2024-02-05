@@ -13,7 +13,6 @@ from transformers import (
     HfArgumentParser,
     set_seed,
 )
-import pydevd_pycharm
 
 from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
@@ -21,6 +20,7 @@ from transformers.utils.versions import require_version
 from args import TrainingArguments, ModelArguments, DataTrainingArguments
 from substep_trainer import SubstepTrainer
 from utils import get_last_checkpoint_or_last_model, parse_checkpoint_step
+from config_parser import parse_config
 
 from data import load_raw_dataset, preprocess_datasets, load_preprocessed_datasets
 
@@ -33,23 +33,24 @@ require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/lang
 
 logger = logging.getLogger(__name__)
 
-# import pydevd_pycharm
-# pydevd_pycharm.settrace('localhost', port=2000, stdoutToServer=True, stderrToServer=True)
 
-# pydevd_pycharm.settrace("localhost", port=2000, stdoutToServer=True, stderrToServer=True)
 def main():
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
-    if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
-        # If we pass only one argument to the script and it's the path to a json file,
-        # let's parse it to get our arguments.
-        model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
-    else:
-        model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    # parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
+    # if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
+    #     # If we pass only one argument to the script and it's the path to a json file,
+    #     # let's parse it to get our arguments.
+    #     model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+    # else:
+    #     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    config_path = "configs/config.yaml"
+    model_args, data_args, training_args = parse_config(config_path)
 
+    # import pydevd_pycharm
+    # pydevd_pycharm.settrace('localhost', port=2000, stdoutToServer=True, stderrToServer=True)
     # Setup logging
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",

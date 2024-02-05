@@ -7,7 +7,7 @@ nvidia-smi
 base_model=${BASE:-"princeton-nlp/Sheared-LLaMA-1.3B"}
 model_url=${base_model}
 run_name="LLaMA-1.3B"
-total=${BATCH:-32}      # total batch size
+total=${BATCH:-2}      # total batch size
 bs=${SEQ:-2}            # batch size per device
 lr=${LR:-8e-4}
 warmup_steps=${WU:-5000}
@@ -54,7 +54,7 @@ export WANDB_PROJECT="autocompressors"
 
 export OMP_NUM_THREADS=8
 ACCELERATE_CONFIG_FILE=/home/galimzyanov/AutoCompressors/configs/accelerate_4gpu.yaml
-header="accelerate launch train.py"
+header="accelerate launch train.py" #--main_process_port 29501
 
 #header="torchrun \
 #--nnodes=$num_nodes \

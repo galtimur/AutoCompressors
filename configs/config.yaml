@@ -1,0 +1,69 @@
+defaults:
+  do_train: true
+  base_model: "princeton-nlp/Sheared-LLaMA-1.3B"
+  total: 32 # total batch size # TODO rename later
+  per_device_eval_batch_size: 2
+  per_device_train_batch_size: 2
+  warmup_steps: 5000
+  save_steps: 5000
+  num_train_epochs: 1
+  logging_steps: 1
+  add_special_tokens: false
+  use_fast_tokenizer: false
+  num_gpus: 1
+  num_nodes: 1
+  node: "localhost"
+  accumulate_summary: true
+  remove_unused_columns: false
+  train_domains:
+    - "Books3"
+    - "Github"
+    - "FreeLaw"
+    - "Wikipedia"
+  eval_domains:
+    - "Books3"
+    - "Github"
+    - "FreeLaw"
+    - "Wikipedia"
+    - "Gutenberg"
+    - "HackerNews"
+    - "ArXiv"
+    - "YoutubeSubtitles"
+
+data:
+  preprocessed_train_datasets: ["awettig/RedPajama-combined-15B-6K-llama"]
+  preprocessing_num_workers: 0
+  dataloader_num_workers: 0
+
+output:
+  log_level: critical
+  disable_tqdm: true
+  out_dir: "/mnt/data2/galimzyanov/autocompressor/checkpoints/"
+
+training:
+  summary_accumulation: true
+  segments_per_substep: 2
+  training_substeps: 3
+  summary_length: 50
+  randomize_substeps: true
+  segment_gradient_checkpointing: false
+  learning_rate: 8e-4 # TODO rename later
+  resume_from_checkpoint: false
+  checkpointing: true  # If your training script supports checkpointing
+  bf16: true
+lora:
+  lora: true
+  lora_r: 16
+  lora_alpha: 16
+  lora_dropout: 0.05
+  lora_target_modules: ["q_proj", "v_proj", "o_proj", "k_proj"]
+  lora_modules_to_save: ["embed_summary"]
+
+wandb:
+  report_to: "wandb"
+  run_name: "LLaMA-1.3B"
+  dir: "/mnt/data2/galimzyanov/autocompressor/checkpoints/"
+  project: "autocompressors"
+
+run:
+  accelerate_config_file: "/home/galimzyanov/AutoCompressors/configs/accelerate_4gpu.yaml"
