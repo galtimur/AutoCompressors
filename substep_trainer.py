@@ -234,7 +234,8 @@ class SubstepTrainer(BaseTrainer):
     def segment_input(self, inputs, substep):
         """Returns the sliced inputs and the random segment lengths when randomize_substeps=True"""
         
-        # if using segment_lenghts, keep only the end segment of the inputs. This is useful for evaluation. During training, segment lengths should sum to the total block_size
+        # if using segment_lenghts, keep only the end segment of the inputs.
+        # This is useful for evaluation. During training, segment lengths should sum to the total block_size
         if not self.args.randomize_substeps:
             total_length = sum(self.args.segment_lengths) * self.args.training_substeps
             inputs["input_ids"] = inputs["input_ids"][:, -total_length:]

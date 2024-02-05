@@ -33,6 +33,9 @@ require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/lang
 
 logger = logging.getLogger(__name__)
 
+# import pydevd_pycharm
+# pydevd_pycharm.settrace('localhost', port=2000, stdoutToServer=True, stderrToServer=True)
+
 # pydevd_pycharm.settrace("localhost", port=2000, stdoutToServer=True, stderrToServer=True)
 def main():
     # See all possible arguments in src/transformers/training_args.py
