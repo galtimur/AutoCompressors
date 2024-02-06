@@ -10,7 +10,7 @@ defaults:
   logging_steps: 1
   add_special_tokens: false
   use_fast_tokenizer: false
-  num_gpus: 1
+  num_gpus: 4
   num_nodes: 1
   node: "localhost"
   accumulate_summary: true
@@ -47,13 +47,14 @@ training:
   summary_length: 50
   randomize_substeps: true
   segment_gradient_checkpointing: false
-  learning_rate: 4e-4 # TODO rename later
+  learning_rate: 4e-4
   resume_from_checkpoint: false
   checkpointing: true  # If your training script supports checkpointing
   bf16: true
+  train_embed_only: true
+  lora: false
 
 lora:
-  lora: true
   lora_r: 16
   lora_alpha: 16
   lora_dropout: 0.05

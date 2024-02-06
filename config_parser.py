@@ -18,10 +18,9 @@ def parse_config(config_path):
         config["num_gpus"] * config["num_nodes"]
     )
 
-    config["model_url"] = config["base_model"]
-    config["config_name"] = config["model_url"]
-    config["tokenizer_name"] = config["model_url"]
-    config["model_name_or_path"] = config["model_url"]
+    config["config_name"] = config["base_model"]
+    config["tokenizer_name"] = config["base_model"]
+    config["model_name_or_path"] = config["base_model"]
     config["gradient_accumulation_steps"] = (
         config["total_per_device"] // config["per_device_train_batch_size"]
     )
@@ -51,7 +50,6 @@ def parse_config(config_path):
         "checkpointing",
         "dir",
         "eval_domains",
-        "model_url",
         "node",
         "num_gpus",
         "num_nodes",

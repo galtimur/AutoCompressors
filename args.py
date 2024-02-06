@@ -47,6 +47,11 @@ class TrainingArguments(HfTrainingArguments):
         metadata={"help": "Use fast attention during training (experimental)"}
     )
 
+    train_embed_only: bool = field(
+        default=False,
+        metadata={"help": "Train only summary embeddings, freeze model"}
+    )
+
 
 @dataclass
 class ModelArguments:

@@ -10,14 +10,13 @@ from transformers import (
     CONFIG_MAPPING,
     AutoConfig,
     AutoTokenizer,
-    HfArgumentParser,
     set_seed,
+    get_linear_schedule_with_warmup
 )
 
 from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
 
-from args import TrainingArguments, ModelArguments, DataTrainingArguments
 from substep_trainer import SubstepTrainer
 from utils import get_last_checkpoint_or_last_model, parse_checkpoint_step
 from config_parser import parse_config
@@ -172,6 +171,10 @@ def main():
 
     if model_args.model_name_or_path:
         half_dtype = (torch.bfloat16 if training_args.bf16 else (torch.float16 if training_args.fp16 else None))
+        if model_args.lora or model_args.lora_path or training_args.bf16:
+            model_dtype = half_dtype
+        else:
+            model_dtype = None
         model = AutoCompressorModel.from_pretrained(
             model_args.model_name_or_path,
             from_tf=bool(".ckpt" in model_args.model_name_or_path),
@@ -179,7 +182,7 @@ def main():
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
             use_auth_token=True if model_args.use_auth_token else None,
-            torch_dtype=(half_dtype if model_args.lora or model_args.lora_path else None),
+            torch_dtype=model_dtype,
         )
     else:
         model = AutoCompressorModel.from_config(config)
@@ -199,6 +202,10 @@ def main():
         embed.num_embeddings = embed.weight.size(0)
         model.config.max_position_embeddings = max_pos * multiply
         logger.info(f"Positional embeddings increased to {embed.num_embeddings}")
+
+    if training_args.train_embed_only:
+        model_args.lora = False
+        model_args.lora_path = False
 
     if model_args.lora or model_args.lora_path:
         from peft import PeftModel, get_peft_model, LoraConfig, TaskType
@@ -223,8 +230,19 @@ def main():
         logger.info("Patching (experimental) fast attention")
         patch_opt(model)
 
-
-
+    optimizer = None
+    if training_args.train_embed_only:
+        num_trainable_parameters = 0
+        for name, param in model.named_parameters():
+            if 'embed_summary' in name.lower():
+                param.requires_grad = True
+                num_trainable_parameters += param.numel()
+            else:
+                param.requires_grad = False
+        print(f"Number of trainable parameters = {num_trainable_parameters}")
+        optimizer = torch.optim.AdamW(model.embed_summary.parameters(), lr=training_args.learning_rate)
+        # num_training_steps = len(train_dataset) * training_args.num_train_epochs
+        # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=training_args.warmup_steps, num_training_steps=num_training_steps)
     tokenizer.padding = True
     # Initialize our Trainer
     trainer = SubstepTrainer(
@@ -233,7 +251,8 @@ def main():
         train_dataset=train_dataset if training_args.do_train else None,
         eval_dataset=eval_dataset if training_args.do_eval else None,
         tokenizer=tokenizer,
-        # callbacks=[GradientLoggerCallback]
+        # callbacks=[GradientLoggerCallback],
+        optimizers = (optimizer, None)
     )
 
     if last_checkpoint is not None:
