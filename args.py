@@ -52,6 +52,10 @@ class TrainingArguments(HfTrainingArguments):
         metadata={"help": "Train only summary embeddings, freeze model"}
     )
 
+    use_accelerate: bool = field(
+        default=False,
+        metadata={"help": "Whether to use accelerate for distributed training"}
+    )
 
 @dataclass
 class ModelArguments:

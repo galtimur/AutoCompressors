@@ -47,12 +47,13 @@ training:
   summary_length: 50
   randomize_substeps: true
   segment_gradient_checkpointing: false
-  learning_rate: 4e-4
+  learning_rate: 8e-4
   resume_from_checkpoint: false
   checkpointing: true  # If your training script supports checkpointing
   bf16: true
-  train_embed_only: true
-  lora: false
+  train_embed_only: false
+  lora: true
+  use_accelerate: true
 
 lora:
   lora_r: 16

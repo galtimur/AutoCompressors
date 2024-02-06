@@ -65,6 +65,7 @@ class SubstepTrainer(BaseTrainer):
         callbacks: Optional[List[TrainerCallback]] = None,
         optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (None, None),
         preprocess_logits_for_metrics: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = None,
+        accelerator=None
     ):
         super().__init__(model,
                          args,
@@ -82,6 +83,7 @@ class SubstepTrainer(BaseTrainer):
         self.loss_log = {f"substep_{i}": 0 for i in range(self.args.training_substeps)}
         self.substep_count = torch.tensor([0])
         self.log_count = 0
+        self.accelerator = accelerator
 
     def add_metrics(self, metrics, log_p, labels, prefix=""):
         """Adds metrics to the metrics dictionary. """
@@ -177,6 +179,8 @@ class SubstepTrainer(BaseTrainer):
         if self.deepspeed:
             # loss gets scaled under gradient_accumulation_steps in deepspeed
             loss = self.deepspeed.backward(loss)
+        elif self.accelerator is not None:
+            self.accelerator.backward(loss)
         else:
             loss.backward()
 

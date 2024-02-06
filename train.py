@@ -245,15 +245,21 @@ def main():
         # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=training_args.warmup_steps, num_training_steps=num_training_steps)
     tokenizer.padding = True
     # Initialize our Trainer
-    trainer = SubstepTrainer(
+    if training_args.use_accelerate:
+        from accelerate import Accelerator
+        accelerator = Accelerator()
+    else:
+        accelerator = None
+    trainer = accelerator.prepare(SubstepTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
         eval_dataset=eval_dataset if training_args.do_eval else None,
         tokenizer=tokenizer,
         # callbacks=[GradientLoggerCallback],
-        optimizers = (optimizer, None)
-    )
+        optimizers = (optimizer, None),
+        accelerator=accelerator,
+    ))
 
     if last_checkpoint is not None:
         trainer._load_from_checkpoint(last_checkpoint)
