@@ -172,6 +172,11 @@ class DataTrainingArguments:
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
+
+    streaming_data: bool = field(
+        default=False, metadata={"help": "Whether to use streaming data withoud downloading whole dataset"}
+    )
+
     validation_split_percentage: Optional[int] = field(
         default=5,
         metadata={

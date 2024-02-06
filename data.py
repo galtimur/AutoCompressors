@@ -215,10 +215,12 @@ def load_preprocessed_datasets(data_args, model_args):
                 train_file,
                 split="train",
                 cache_dir=model_args.cache_dir,
-                use_auth_token=True if model_args.use_auth_token else None
+                use_auth_token=True if model_args.use_auth_token else None,
+                streaming=data_args.streaming_data
             )
         d[f"train-{name}"] = data
-        print(f"Loaded {train_file} training data, {len(data)} examples")
+        if not data_args.streaming_data:
+            print(f"Loaded {train_file} training data, {len(data)} examples")
 
     for valid_file in data_args.preprocessed_validation_datasets:
         name = os.path.basename(valid_file).split(".")[0]

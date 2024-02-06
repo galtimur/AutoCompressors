@@ -90,10 +90,15 @@ def main():
         if "train" not in lm_datasets:
             raise ValueError("--do_train requires a train dataset")
         train_dataset = lm_datasets["train"]
-        if data_args.max_train_samples is not None:
-            max_train_samples = min(len(train_dataset), data_args.max_train_samples)
+        if data_args.streaming_data:
+            dataset_length = 200000 # TODO replace by real data size
+            training_args.max_steps = dataset_length
+        else:
+            dataset_length = len(train_dataset)
+        if data_args.max_train_samples is not None and not data_args.streaming_data:
+            max_train_samples = min(dataset_length, data_args.max_train_samples)
             train_dataset = train_dataset.select(range(max_train_samples))
-        print(f"Total number of training data: {len(train_dataset)}")
+        print(f"Total number of training data: {dataset_length}")
 
     if training_args.do_eval:
         # max eval sample deleted
