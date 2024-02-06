@@ -13,6 +13,7 @@ def parse_config(config_path):
     config = merged_dict
 
     # Compute additional values
+    # TODO pass num_gpus from accelerate config
     config["total_per_device"] = config["total"] // (
         config["num_gpus"] * config["num_nodes"]
     )
@@ -46,7 +47,6 @@ def parse_config(config_path):
     os.environ["OMP_NUM_THREADS"] = "8"
 
     keys_to_remove = [
-        "accelerate_config_file",
         "base_model",
         "checkpointing",
         "dir",

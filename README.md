@@ -59,9 +59,11 @@ https://github.com/Dao-AILab/flash-attention/issues/631#issuecomment-1820931085
 3. transformers 4.35 does not have attribute do_grad_scaling and cause the falling.
 
 ### Training
-`train.sh` is the main method for training AutoCompressors and defines the most important hyperparameters for `train.py`.
-You may have adjust some setting, like the number GPUs, depending on the system.
-The script should be easy to get started with, since it uses pre-tokenized datasets from the huggingface hub.
+`accelerate launch --config_file configs/accelerate_4gpu.yaml train.py` is the main method for training AutoCompressors on multiple GPUs.
+Parameters are set in the configs/config.yaml. Parameters for hardware are set in configs/accelerate_4gpu.yaml.  
+For training on single GPU and debugging you can run `python train.py`.
+
+The script should be easy to get started with, since it uses pre-tokenized datasets from the huggingface hub.  
 
 #### Notes on Flash Attention
 We use Flash Attention which lowers the memory requirements during training substantially.

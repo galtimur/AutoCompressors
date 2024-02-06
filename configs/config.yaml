@@ -51,6 +51,7 @@ training:
   resume_from_checkpoint: false
   checkpointing: true  # If your training script supports checkpointing
   bf16: true
+
 lora:
   lora: true
   lora_r: 16
@@ -64,6 +65,3 @@ wandb:
   run_name: "LLaMA-1.3B"
   dir: "/mnt/data2/galimzyanov/autocompressor/checkpoints/"
   project: "autocompressors"
-
-run:
-  accelerate_config_file: "/home/galimzyanov/AutoCompressors/configs/accelerate_4gpu.yaml"
