@@ -47,7 +47,7 @@ training:
   summary_length: 50
   randomize_substeps: true
   segment_gradient_checkpointing: false
-  learning_rate: 8e-4 # TODO rename later
+  learning_rate: 4e-4 # TODO rename later
   resume_from_checkpoint: false
   checkpointing: true  # If your training script supports checkpointing
   bf16: true
