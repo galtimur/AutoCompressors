@@ -85,8 +85,8 @@ def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
     losses_dict = {}
     for k, v in log_losses.items():
         loss = v / token_counts[k]
-        losses_dict[k + 'loss'] = loss
-        losses_dict[k + 'ppl'] = np.exp(loss)
+        losses_dict[k + '_loss'] = loss
+        losses_dict[k + '_ppl'] = np.exp(loss)
         losses_dict[k + '_num_tokens'] = token_counts[k]
         losses_dict['num_samples'] = batch_size * samp_num
     print(losses_dict)
