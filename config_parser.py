@@ -6,6 +6,7 @@ from omegaconf import OmegaConf
 
 def parse_config(config_path):
     config = OmegaConf.load(config_path)
+    config = OmegaConf.to_container(config, resolve=True)
 
     merged_dict = {}
     for d in list(config.values()):
