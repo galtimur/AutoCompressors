@@ -249,22 +249,6 @@ def main():
         # num_training_steps = len(train_dataset) * training_args.num_train_epochs
         # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=training_args.warmup_steps, num_training_steps=num_training_steps)
     tokenizer.padding = True
-    # Initialize our Trainer
-    # if training_args.use_accelerate:
-    #     from accelerate import Accelerator
-    #     accelerator = Accelerator()
-    # else:
-    #     accelerator = None
-    # trainer = accelerator.prepare(SubstepTrainer(
-    #     model=model,
-    #     args=training_args,
-    #     train_dataset=train_dataset if training_args.do_train else None,
-    #     eval_dataset=eval_dataset if training_args.do_eval else None,
-    #     tokenizer=tokenizer,
-    #     # callbacks=[GradientLoggerCallback],
-    #     optimizers = (optimizer, None),
-    #     accelerator=accelerator,
-    # ))
 
     trainer = SubstepTrainer(
         model=model,
