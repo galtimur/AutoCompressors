@@ -1,5 +1,8 @@
 import os
 import re
+from safetensors import safe_open
+from safetensors.torch import save_file
+import shutil
 
 def get_last_checkpoint_or_last_model(folder):
     """modification of get_last_checkpoint from transformer.trainer_utils.
@@ -46,3 +49,23 @@ def calc_grad(model):
     total_norm = (total_norm**0.5) / (num_parameters+1)
 
     return total_norm
+
+def load_check_merging(last_checkpoint: str, trainer):
+    base_folder = os.path.dirname(last_checkpoint)
+    file_path_main = os.path.join(base_folder, "model.safetensors")
+    file_path_part = os.path.join(last_checkpoint, "model.safetensors")
+    file_path_part_copy = os.path.join(last_checkpoint, "model_copy.safetensors_copy")
+    shutil.copy2(file_path_part, file_path_part_copy)
+    tensors = {}
+    with safe_open(file_path_main, framework="pt", device=0) as f:
+        for k in f.keys():
+            tensors[k] = f.get_tensor(k)
+
+    with safe_open(file_path_part, framework="pt", device=0) as f:
+        for k in f.keys():
+            tensors[k] = f.get_tensor(k)
+
+    save_file(tensors, file_path_part)
+    trainer._load_from_checkpoint(last_checkpoint)
+    shutil.copy2(file_path_part_copy, file_path_part)
+    os.remove(file_path_part_copy)

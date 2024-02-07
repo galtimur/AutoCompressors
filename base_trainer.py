@@ -137,6 +137,9 @@ class BaseTrainer(Trainer):
     def __init__(self, model, args, *more_args, **kwargs):
         super().__init__(model, args, *more_args, **kwargs)
 
+        self.args_to_save = args
+        self.saved_full_model = False
+        self.embed_sum_keys = [key for key in model.state_dict().keys() if "embed_summary" in key]
         try:
             self.remove_callback(PrinterCallback)
             self.add_callback(LogCallback)
@@ -154,6 +157,15 @@ class BaseTrainer(Trainer):
             return out + (None,)
         else:
             return out
+
+    def _save(self, output_dir: Optional[str] = None, state_dict=None):
+        if not self.args_to_save.train_embed_only or not self.saved_full_model:
+            super()._save(output_dir, state_dict)
+        else:
+            state_dict = {key:self.model.state_dict()[key] for key in self.embed_sum_keys}
+            super()._save(output_dir, state_dict)
+
+        return None
 
     def prediction_step(
         self,

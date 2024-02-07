@@ -18,7 +18,7 @@ from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
 
 from substep_trainer import SubstepTrainer
-from utils import get_last_checkpoint_or_last_model, parse_checkpoint_step
+from utils import get_last_checkpoint_or_last_model, parse_checkpoint_step, load_check_merging
 from config_parser import parse_config
 
 from data import load_raw_dataset, preprocess_datasets, load_preprocessed_datasets
@@ -116,7 +116,10 @@ def main():
     # Detecting last checkpoint.
     last_checkpoint = None
     if training_args.resume_from_checkpoint:
-        last_checkpoint = get_last_checkpoint_or_last_model(training_args.output_dir)
+        if training_args.checkpoint_path is None:
+            last_checkpoint = get_last_checkpoint_or_last_model(training_args.output_dir)
+        else:
+            last_checkpoint = training_args.checkpoint_path
         if last_checkpoint is None:
             print(f"Didn't find a checkpoint in {training_args.output_dir}. Starting training from scratch")
         else:
@@ -261,13 +264,20 @@ def main():
     )
 
     if last_checkpoint is not None:
-        trainer._load_from_checkpoint(last_checkpoint)
+        if training_args.train_embed_only:
+            load_check_merging(last_checkpoint, trainer)
+        else:
+            trainer._load_from_checkpoint(last_checkpoint)
     else:
         logger.info("Using a model loaded from scratch!")
 
     # Training
     if training_args.do_train:
+        trainer.save_model()
+        trainer.save_state()
+        trainer.saved_full_model = True
         train_result = trainer.train(resume_from_checkpoint=last_checkpoint)
+        trainer.saved_full_model = False
         trainer.save_model()  # Saves the tokenizer too for easy upload
 
         metrics = train_result.metrics

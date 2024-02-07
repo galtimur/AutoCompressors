@@ -57,6 +57,11 @@ class TrainingArguments(HfTrainingArguments):
         metadata={"help": "Whether to use accelerate for distributed training"}
     )
 
+    checkpoint_path: Optional[int] = field(
+        default=None,
+        metadata={"help": "Path to checkpoint you want to load."}
+    )
+
 @dataclass
 class ModelArguments:
     """
