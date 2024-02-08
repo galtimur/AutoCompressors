@@ -56,8 +56,8 @@ def main(lora_path: str,
         model = LlamaAutoCompressorModel.from_pretrained(base_model_name, config=config, torch_dtype=torch.bfloat16)
         try:
             model = PeftModel.from_pretrained(model, lora_path)
-        except HFValidationError:
-            raise
+        except HFValidationError as e:
+            raise e
             print('Tried to load PEFT model but failed. Trying to load as a model+peft checkpoint')
             with open(lora_path / 'adapter_config.json') as fp:
                 peft_config_dict = json.load(fp)
