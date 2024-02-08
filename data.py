@@ -8,13 +8,13 @@ from itertools import chain
 
 logger = logging.getLogger(__name__)
 
+
 def load_raw_dataset(data_args, model_args):
     if data_args.dataset_name is not None:
         # Downloading and loading)datasets.load_from_disk() a dataset from the hub.
         raw_datasets = datasets.load_dataset(
             data_args.dataset_name,
             data_args.dataset_config_name,
-            cache_dir=model_args.cache_dir,
             use_auth_token=True if model_args.use_auth_token else None,
         )
         if "validation" not in raw_datasets.keys():
@@ -22,14 +22,12 @@ def load_raw_dataset(data_args, model_args):
                 data_args.dataset_name,
                 data_args.dataset_config_name,
                 split=f"train[:{data_args.validation_split_percentage}%]",
-                cache_dir=model_args.cache_dir,
                 use_auth_token=True if model_args.use_auth_token else None,
             )
             raw_datasets["train"] = datasets.load_dataset(
                 data_args.dataset_name,
                 data_args.dataset_config_name,
                 split=f"train[{data_args.validation_split_percentage}%:]",
-                cache_dir=model_args.cache_dir,
                 use_auth_token=True if model_args.use_auth_token else None,
             )
     else:
@@ -51,7 +49,6 @@ def load_raw_dataset(data_args, model_args):
         raw_datasets = datasets.load_dataset(
             extension,
             data_files=data_files,
-            cache_dir=model_args.cache_dir,
             use_auth_token=True if model_args.use_auth_token else None,
             **dataset_args,
         )
@@ -62,7 +59,6 @@ def load_raw_dataset(data_args, model_args):
                 extension,
                 data_files=data_files,
                 split=f"train[:{data_args.validation_split_percentage}%]",
-                cache_dir=model_args.cache_dir,
                 use_auth_token=True if model_args.use_auth_token else None,
                 **dataset_args,
             )
@@ -70,7 +66,6 @@ def load_raw_dataset(data_args, model_args):
                 extension,
                 data_files=data_files,
                 split=f"train[{data_args.validation_split_percentage}%:]",
-                cache_dir=model_args.cache_dir,
                 use_auth_token=True if model_args.use_auth_token else None,
                 **dataset_args,
             )
