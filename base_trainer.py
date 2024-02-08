@@ -2,6 +2,7 @@ import functools
 from collections.abc import Mapping
 from distutils.util import strtobool
 from pathlib import Path
+import re
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 from transformers import Trainer
@@ -19,6 +20,9 @@ from transformers.trainer_callback import (
     PrinterCallback,
     TrainerCallback,
 )
+
+from transformers.integrations import WandbCallback
+
 from transformers.trainer_pt_utils import (
     IterableDatasetShard,
     find_batch_size,
@@ -61,7 +65,7 @@ else:
     IS_SAGEMAKER_MP_POST_1_10 = False
 
 
-
+from eval_ppl import evaluate_ppl_red_pajamas
 from transformers.trainer import logger
 
 # Name of the files used for checkpointing
@@ -70,6 +74,21 @@ TRAINER_STATE_NAME = "trainer_state.json"
 OPTIMIZER_NAME = "optimizer.pt"
 SCHEDULER_NAME = "scheduler.pt"
 SCALER_NAME = "scaler.pt"
+
+import wandb
+from datasets import load_dataset
+class EvalCallback(TrainerCallback):
+    def __init__(self):
+        self.pattern = re.compile(r'^chunk_\d+_(loss|ppl)$')
+        self.batch_size = 5
+        self.max_samples = 300
+        self.ds = load_dataset('awettig/RedPajama-combined-15B-6K-llama', split='test')
+    def on_save(self, args, state, logs, model, **kwargs):
+        # result = eval_result["chunk_0_loss"]
+        if state.is_local_process_zero and state.is_world_process_zero:
+            eval_result = evaluate_ppl_red_pajamas(model, self.ds, self.batch_size, max_samples=self.max_samples)
+            eval_result = {f"val/{key}": value for key, value in eval_result.items() if self.pattern.match(key)}
+            wandb.log(eval_result)
 
 class LogCallback(TrainerCallback):
     def __init__(self, *args, **kwargs):

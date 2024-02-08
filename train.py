@@ -18,6 +18,7 @@ from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
 
 from substep_trainer import SubstepTrainer
+from base_trainer import EvalCallback
 from utils import get_last_checkpoint_or_last_model, parse_checkpoint_step, load_check_merging
 from config_parser import parse_config
 
@@ -253,13 +254,17 @@ def main():
         # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=training_args.warmup_steps, num_training_steps=num_training_steps)
     tokenizer.padding = True
 
+    training_args.eval_steps = 10
+
+    MyEvalCallback = EvalCallback()
+
     trainer = SubstepTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
         eval_dataset=eval_dataset if training_args.do_eval else None,
         tokenizer=tokenizer,
-        # callbacks=[GradientLoggerCallback],
+        callbacks=[MyEvalCallback],#GradientLoggerCallback
         optimizers = (optimizer, None)
     )
 

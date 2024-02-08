@@ -34,6 +34,7 @@ def equal_size_splits(text_or_token_ids: str | Tensor,
  
 
 def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
+                             ds,
                              batch_size: int,
                              max_samples: int = 100,
                              split_size: int = 1536,
@@ -46,8 +47,8 @@ def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
     else:
         model = model_or_path
         device = model.device
-        
-    ds = load_dataset('awettig/RedPajama-combined-15B-6K-llama', split='test')
+
+    # ds = load_dataset('awettig/RedPajama-combined-15B-6K-llama', split='test')
     log_losses = defaultdict(float)
     token_counts = defaultdict(int)
     
@@ -88,5 +89,5 @@ def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
         losses_dict[k + '_ppl'] = np.exp(loss)
         losses_dict[k + '_num_tokens'] = token_counts[k]
         losses_dict['num_samples'] = batch_size * samp_num
-    print(losses_dict)
+    # print(losses_dict)
     return losses_dict
