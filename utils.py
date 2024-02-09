@@ -59,48 +59,52 @@ def check_proc_flags(folder: str, max_proc: int, prefix: str):
 
     return all_files_exist
 
+def merge_ckpts(main_folder, part_folder, temp_folder, flag_filename=".merging_done_flag", config_filename = "config_base_model.yaml"):
+    flag_file = os.path.join(temp_folder, flag_filename)
+    if os.path.exists(temp_folder):
+        shutil.rmtree(temp_folder)
+    shutil.copytree(part_folder, temp_folder)
+    shutil.copy2(os.path.join(main_folder, config_filename), os.path.join(temp_folder, config_filename))
+    file_path_part = os.path.join(part_folder, "model.safetensors")
+    file_path_main = os.path.join(main_folder, "model.safetensors")
+    model_tensor_path = os.path.join(temp_folder, "model.safetensors")
+    os.remove(model_tensor_path)
+    tensors = {}
+    with safe_open(file_path_main, framework="pt") as f:
+        metadata = f.metadata()
+        for k in f.keys():
+            tensors[k] = f.get_tensor(k)
 
+    with safe_open(file_path_part, framework="pt") as f:
+        for k in f.keys():
+            tensors[k] = f.get_tensor(k)
+
+    save_file(tensors, model_tensor_path, metadata)
+    with open(flag_file, 'w') as f:
+        pass
+
+    return flag_file
 
 def load_check_merging(last_checkpoint: str, trainer):
     process_indx = trainer.accelerator.state.process_index
     max_proc = trainer.accelerator.num_processes
     base_folder = os.path.dirname(last_checkpoint)
     temp_folder = os.path.join(base_folder, "checkpoint_merge_temp")
-    flag_file = os.path.join(temp_folder, ".merging_done_flag")
+    flag_filename = ".merging_done_flag"
+    flag_file = os.path.join(temp_folder, flag_filename)
     flag_prefix = ".flag_proc"
     # TODO add node index too
     flag_file_process = os.path.join(temp_folder, f"{flag_prefix}_{process_indx}")
     if trainer.state.is_local_process_zero and trainer.state.is_world_process_zero:
         main_model_folder = os.path.join(base_folder, "base_model")
-        if os.path.exists(temp_folder):
-            shutil.rmtree(temp_folder)
-        shutil.copytree(last_checkpoint, temp_folder)
-        file_path_part = os.path.join(last_checkpoint, "model.safetensors")
-        file_path_main = os.path.join(main_model_folder, "model.safetensors")
-        model_tensor_path = os.path.join(temp_folder, "model.safetensors")
-        os.remove(model_tensor_path)
-        tensors = {}
-        with safe_open(file_path_main, framework="pt", device=0) as f:
-            for k in f.keys():
-                tensors[k] = f.get_tensor(k)
-
-        with safe_open(file_path_part, framework="pt", device=0) as f:
-            for k in f.keys():
-                tensors[k] = f.get_tensor(k)
-
-        save_file(tensors, model_tensor_path)
-        with open(flag_file, 'w') as f:
-            pass
-
+        config_filename = "config_base_model.yaml"
+        merge_ckpts(main_model_folder, last_checkpoint, temp_folder, flag_filename, config_filename)
     else:
         exist_merge = os.path.exists(flag_file)
         while not exist_merge:
             exist_merge = os.path.exists(flag_file)
             time.sleep(0.2)
 
-
-    while not os.path.exists(temp_folder):
-        pass
     trainer._load_from_checkpoint(temp_folder)
     with open(flag_file_process, 'w') as f:
         pass
