@@ -11,7 +11,7 @@ defaults:
   logging_steps: 1
   add_special_tokens: false
   use_fast_tokenizer: false
-  num_gpus: 4
+  num_gpus: 2
   num_nodes: 1
   node: "localhost"
   accumulate_summary: true
@@ -52,7 +52,7 @@ training:
   randomize_substeps: true
   segment_gradient_checkpointing: false
   learning_rate: 4e-3
-  resume_from_checkpoint: false
+  resume_from_checkpoint: true
   # checkpoint_path: "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_lr0.004_bsz30_rand_accu_embed_only/checkpoint-300"
   checkpointing: true  # If your training script supports checkpointing
   bf16: true

@@ -21,6 +21,12 @@ from substep_trainer import SubstepTrainer
 from base_trainer import EvalCallback
 from utils import get_last_checkpoint_or_last_model, parse_checkpoint_step, load_check_merging
 from config_parser import parse_config
+import shutil
+from pathlib import Path
+
+from accelerate import Accelerator
+
+accelerator = Accelerator()
 
 from data import load_raw_dataset, preprocess_datasets, load_preprocessed_datasets
 
@@ -33,6 +39,12 @@ require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/lang
 
 logger = logging.getLogger(__name__)
 
+
+def save_base_model(config_path, trainer):
+    base_model_folder = Path(os.path.join(trainer.args.output_dir, "base_model"))
+    Path.mkdir(base_model_folder, exist_ok=True, parents=True)
+    shutil.copy2(config_path, os.path.join(base_model_folder, "config_base_model.yaml"))
+    trainer.save_model(output_dir=base_model_folder)
 
 def main():
     # See all possible arguments in src/transformers/training_args.py
@@ -268,6 +280,7 @@ def main():
         optimizers = (optimizer, None)
     )
 
+    # print(trainer.state, trainer.state.is_local_process_zero, accelerator.state.process_index)
     if last_checkpoint is not None:
         if training_args.train_embed_only:
             load_check_merging(last_checkpoint, trainer)
@@ -275,11 +288,12 @@ def main():
             trainer._load_from_checkpoint(last_checkpoint)
     else:
         logger.info("Using a model loaded from scratch!")
-
+    process_indx = trainer.accelerator.state.process_index
+    print(f"--- Model loaded in process {process_indx} ---")
+    return None
     # Training
     if training_args.do_train:
-        trainer.save_model()
-        trainer.save_state()
+        save_base_model(config_path, trainer)
         trainer.saved_full_model = True
         train_result = trainer.train(resume_from_checkpoint=last_checkpoint)
         trainer.saved_full_model = False
@@ -328,4 +342,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+    import time
+    time.sleep(5)
 
