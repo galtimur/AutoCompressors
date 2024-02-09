@@ -1,6 +1,6 @@
 defaults:
   do_train: true
-  do_eval: true
+  do_eval: false
   base_model: "princeton-nlp/Sheared-LLaMA-1.3B"
   total: 30 # total batch size # TODO rename later
   per_device_eval_batch_size: 2
@@ -35,7 +35,7 @@ data:
   preprocessed_train_datasets: ["awettig/RedPajama-combined-15B-6K-llama"]
   preprocessing_num_workers: 0
   dataloader_num_workers: 0
-  max_train_samples: 60000
+  max_train_samples: null
   # cache_dir: "/mnt/data2/galimzyanov/autocompressor/temp/"
   streaming_data: false
 

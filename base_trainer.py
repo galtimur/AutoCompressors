@@ -83,10 +83,11 @@ class EvalCallback(TrainerCallback):
         self.batch_size = 5
         self.max_samples = 300
         self.ds = load_dataset('awettig/RedPajama-combined-15B-6K-llama', split='test')
+        self.split_size = 1536
     def on_save(self, args, state, logs, model, **kwargs):
         # result = eval_result["chunk_0_loss"]
         if state.is_local_process_zero and state.is_world_process_zero:
-            eval_result = evaluate_ppl_red_pajamas(model, self.ds, self.batch_size, max_samples=self.max_samples)
+            eval_result = evaluate_ppl_red_pajamas(model, self.ds, self.batch_size, max_samples=self.max_samples, split_size=self.split_size)
             eval_result = {f"val/{key}": value for key, value in eval_result.items() if self.pattern.match(key)}
             wandb.log(eval_result)
 

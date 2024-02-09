@@ -27,14 +27,14 @@ def parse_config(config_path):
     )
 
     # Build the run name suffix based on conditions
-    run_name_suffix = f"sub{config['training_substeps']}_seg{config['segments_per_substep']}_sum{config['summary_length']}_lr{config['learning_rate']}_bsz{config['total']}"
-
-    if config["randomize_substeps"]:
-        run_name_suffix += "_rand"
-    if config["summary_accumulation"]:
-        run_name_suffix += "_accu"
-    if config["segment_gradient_checkpointing"]:
-        run_name_suffix += "_check"
+    run_name_suffix = f"sub{config['training_substeps']}_seg{config['segments_per_substep']}_sum{config['summary_length']}"
+    # _lr{config['learning_rate']}_bsz{config['total']}
+    # if config["randomize_substeps"]:
+    #     run_name_suffix += "_rand"
+    # if config["summary_accumulation"]:
+    #     run_name_suffix += "_accu"
+    # if config["segment_gradient_checkpointing"]:
+    #     run_name_suffix += "_check"
     if config["train_embed_only"]:
         run_name_suffix += "_embed_only"
     # run_name_suffix += "_test"
