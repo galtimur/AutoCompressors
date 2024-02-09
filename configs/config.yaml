@@ -36,13 +36,13 @@ data:
   preprocessing_num_workers: 0
   dataloader_num_workers: 0
   max_train_samples: 60000
-  cache_dir: null # "/mnt/data2/galimzyanov/autocompressor/temp/"
-  streaming_data: true
+  # cache_dir: "/mnt/data2/galimzyanov/autocompressor/temp/"
+  streaming_data: false
 
 output:
   log_level: critical
   disable_tqdm: true
-  out_dir: "/mnt/data2/arkhipov/models/autocompressors/test_cfg"
+  out_dir: "/mnt/data2/galimzyanov/autocompressor/checkpoints/"
 
 training:
   summary_accumulation: true
@@ -70,5 +70,5 @@ lora:
 wandb:
   report_to: "wandb"
   run_name: "LLaMA-1.3B"
-  dir: "/mnt/data2/arkhipov/models/autocompressors/test_config_run"
+  dir: "/mnt/data2/galimzyanov/autocompressor/checkpoints/"
   project: "autocompressors"
