@@ -286,11 +286,12 @@ def main():
             load_check_merging(last_checkpoint, trainer)
         else:
             trainer._load_from_checkpoint(last_checkpoint)
+
+        process_indx = trainer.accelerator.state.process_index
+        print(f"--- Model loaded in process {process_indx} ---")
     else:
         logger.info("Using a model loaded from scratch!")
-    process_indx = trainer.accelerator.state.process_index
-    print(f"--- Model loaded in process {process_indx} ---")
-    return None
+
     # Training
     if training_args.do_train:
         save_base_model(config_path, trainer)
@@ -342,6 +343,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    import time
-    time.sleep(5)
-
