@@ -80,10 +80,13 @@ def load_model_from_ckpt(checkpoint_path: str):
 
     if merged_config["lora"]:
         model, run_config = load_lora_model_from_ckpt(checkpoint_path)
+        # TODO If you want, I can add function that saves the fused model as a checkpoint
         print("Loaded LORA model")
-    if merged_config["train_embed_only"]:
+    elif merged_config["train_embed_only"]:
         model, run_config = load_only_embed_model_from_ckpt(checkpoint_path)
         print("Loaded embeddings only model")
+    else:
+        print("Loading for this config state is not implemented yet")
 
     return model, run_config
 
