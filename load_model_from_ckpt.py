@@ -12,6 +12,7 @@ from utils import merge_ckpts
 # TODO check that llama is the model
 # if "llama" in (model_args.model_name_or_path or model_args.config_name).lower():
 
+
 def load_flat_config(config_path):
 
     config = OmegaConf.load(config_path)
@@ -21,6 +22,7 @@ def load_flat_config(config_path):
         merged_config.update(d)
 
     return config, merged_config
+
 
 def load_only_embed_model_from_ckpt(checkpoint_path: str, merged_config):
 
@@ -42,6 +44,7 @@ def load_only_embed_model_from_ckpt(checkpoint_path: str, merged_config):
     tokenizer = AutoTokenizer.from_pretrained(temp_folder, use_fast=merged_config["use_fast_tokenizer"])
 
     return model, tokenizer
+
 
 def load_lora_model_from_ckpt(checkpoint_path: str, merged_config: dict):
     checkpoint_path = Path(checkpoint_path)
@@ -68,6 +71,7 @@ def load_lora_model_from_ckpt(checkpoint_path: str, merged_config: dict):
     tokenizer = AutoTokenizer.from_pretrained(checkpoint_path, use_fast=merged_config["use_fast_tokenizer"])
 
     return model, tokenizer
+
 
 def load_model_from_ckpt(checkpoint_path: str):
 
