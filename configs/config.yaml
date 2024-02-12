@@ -6,13 +6,11 @@ defaults:
   per_device_eval_batch_size: 2
   per_device_train_batch_size: 2
   warmup_steps: 5000
-  save_steps: 300
+  save_steps: 5
   num_train_epochs: 1
   logging_steps: 1
   add_special_tokens: false
   use_fast_tokenizer: false
-  num_gpus: 4
-  num_nodes: 1
   node: "localhost"
   accumulate_summary: true
   remove_unused_columns: false
@@ -52,8 +50,8 @@ training:
   randomize_substeps: true
   segment_gradient_checkpointing: false
   learning_rate: 4e-3
-  resume_from_checkpoint: false
-  # checkpoint_path: "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_lr0.004_bsz30_rand_accu_embed_only/checkpoint-300"
+  resume_from_checkpoint: true
+  checkpoint_path: "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_embed_only_test/checkpoint-25"
   checkpointing: true  # If your training script supports checkpointing
   bf16: true
   train_embed_only: true
@@ -72,3 +70,4 @@ wandb:
   run_name: "LLaMA-1.3B"
   dir: "/mnt/data2/galimzyanov/autocompressor/checkpoints/"
   project: "autocompressors"
+  resume_run: true

@@ -19,8 +19,10 @@ from transformers.utils.versions import require_version
 
 from substep_trainer import SubstepTrainer
 from base_trainer import EvalCallback
-from utils import get_last_checkpoint_or_last_model, parse_checkpoint_step, load_check_merging
+from utils import get_last_checkpoint_or_last_model, parse_checkpoint_step, load_check_merging, wandb_setup
 from config_parser import parse_config
+import shutil
+from pathlib import Path
 
 from data import load_raw_dataset, preprocess_datasets, load_preprocessed_datasets
 
@@ -33,6 +35,12 @@ require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/lang
 
 logger = logging.getLogger(__name__)
 
+
+def save_base_model(config_path, trainer):
+    base_model_folder = Path(os.path.join(trainer.args.output_dir, "base_model"))
+    Path.mkdir(base_model_folder, exist_ok=True, parents=True)
+    shutil.copy2(config_path, os.path.join(base_model_folder, "config_base_model.yaml"))
+    trainer.save_model(output_dir=base_model_folder)
 
 def main():
     # See all possible arguments in src/transformers/training_args.py
@@ -47,7 +55,7 @@ def main():
     # else:
     #     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     config_path = "configs/config.yaml"
-    model_args, data_args, training_args = parse_config(config_path)
+    model_args, data_args, training_args, merge_config = parse_config(config_path)
 
     # import pydevd_pycharm
     # pydevd_pycharm.settrace('localhost', port=2000, stdoutToServer=True, stderrToServer=True)
@@ -71,8 +79,6 @@ def main():
         + f"distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
     )
     logger.info(f"Training/evaluation parameters {training_args}")
-
-
 
     # load_datasets
     if not training_args.do_train:
@@ -112,8 +118,6 @@ def main():
                 else:
                     eval_dataset[key] = lm_datasets[key]
 
-
-
     # Detecting last checkpoint.
     last_checkpoint = None
     if training_args.resume_from_checkpoint:
@@ -126,10 +130,8 @@ def main():
         else:
             print(f"Found checkpoint {last_checkpoint}. Using this checkpoint to resume training.")
 
-
     # Set seed before initializing model.
     set_seed(training_args.seed)
-
 
     tokenizer_kwargs = {
         "cache_dir": model_args.cache_dir,
@@ -254,10 +256,8 @@ def main():
         # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=training_args.warmup_steps, num_training_steps=num_training_steps)
     tokenizer.padding = True
 
-    training_args.eval_steps = 10
-
+    # TODO add run_id
     MyEvalCallback = EvalCallback()
-
     trainer = SubstepTrainer(
         model=model,
         args=training_args,
@@ -268,18 +268,33 @@ def main():
         optimizers = (optimizer, None)
     )
 
+    # print(trainer.state, trainer.state.is_local_process_zero, accelerator.state.process_index)
     if last_checkpoint is not None:
         if training_args.train_embed_only:
             load_check_merging(last_checkpoint, trainer)
         else:
             trainer._load_from_checkpoint(last_checkpoint)
+
+        process_indx = trainer.accelerator.state.process_index
+
+        if merge_config["resume_run"]:
+            wandb_id_file = os.path.join(last_checkpoint, "wandb_id")
+            if os.path.exists(wandb_id_file):
+                with open(wandb_id_file, "r") as f:
+                    run_id = f.read()
+
+                wandb_setup(run_id)
+                print(f"resuming Wandb run id = {run_id}")
+            else:
+                print(f"Could not find run id in ckpt folder. Initializing new run")
+
+        print(f"--- Model loaded in process {process_indx} ---")
     else:
         logger.info("Using a model loaded from scratch!")
 
     # Training
     if training_args.do_train:
-        trainer.save_model()
-        trainer.save_state()
+        save_base_model(config_path, trainer)
         trainer.saved_full_model = True
         train_result = trainer.train(resume_from_checkpoint=last_checkpoint)
         trainer.saved_full_model = False
@@ -328,4 +343,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

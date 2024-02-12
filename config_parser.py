@@ -2,9 +2,10 @@ import os
 from transformers import HfArgumentParser
 from args import TrainingArguments, ModelArguments, DataTrainingArguments
 from omegaconf import OmegaConf
-
+from accelerate import Accelerator
 
 def parse_config(config_path):
+    accelerator = Accelerator()
     config = OmegaConf.load(config_path)
     config = OmegaConf.to_container(config, resolve=True)
 
@@ -12,12 +13,12 @@ def parse_config(config_path):
     for d in list(config.values()):
         merged_dict.update(d)
     config = merged_dict
+    # TODO check, how it would behave if number of node > 1. Does it counts all GPUs or only on single node?
+    config["num_processes"] = accelerator.num_processes
 
     # Compute additional values
     # TODO pass num_gpus from accelerate config
-    config["total_per_device"] = config["total"] // (
-        config["num_gpus"] * config["num_nodes"]
-    )
+    config["total_per_device"] = config["total"] // config["num_processes"]
 
     config["config_name"] = config["base_model"]
     config["tokenizer_name"] = config["base_model"]
@@ -37,7 +38,7 @@ def parse_config(config_path):
     #     run_name_suffix += "_check"
     if config["train_embed_only"]:
         run_name_suffix += "_embed_only"
-    # run_name_suffix += "_test"
+    run_name_suffix += "_test"
 
     # run_name=f"{config['base_model']}_config['run_name_suffix']"
     config["run_name"] = f"{config['run_name']}_{run_name_suffix}"
@@ -52,11 +53,11 @@ def parse_config(config_path):
     keys_to_remove = [
         "base_model",
         "checkpointing",
+        "resume_run",
         "dir",
         "eval_domains",
         "node",
-        "num_gpus",
-        "num_nodes",
+        "num_processes",
         "out_dir",
         "project",
         "summary_accumulation",
@@ -65,10 +66,11 @@ def parse_config(config_path):
         "train_domains",
     ]
 
+    config_run = config.copy()
     config = {k: v for k, v in config.items() if k not in keys_to_remove}
     parser = HfArgumentParser(
         (ModelArguments, DataTrainingArguments, TrainingArguments)
     )
     model_args_dict, data_args_dict, training_args_dict = parser.parse_dict(config)
 
-    return model_args_dict, data_args_dict, training_args_dict
+    return model_args_dict, data_args_dict, training_args_dict, config_run

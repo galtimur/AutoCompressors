@@ -76,6 +76,7 @@ SCHEDULER_NAME = "scheduler.pt"
 SCALER_NAME = "scaler.pt"
 
 import wandb
+import os
 from datasets import load_dataset
 class EvalCallback(TrainerCallback):
     def __init__(self):
@@ -179,6 +180,13 @@ class BaseTrainer(Trainer):
             return out
 
     def _save(self, output_dir: Optional[str] = None, state_dict=None):
+
+        if wandb.run is not None:
+            output_dir_ = output_dir if output_dir is not None else self.args.output_dir
+            os.makedirs(output_dir_, exist_ok=True)
+            run_id = wandb.run.id
+            with open(os.path.join(output_dir_, "wandb_id"), "w") as f:
+                f.write(run_id)
         if not self.args_to_save.train_embed_only or not self.saved_full_model:
             super()._save(output_dir, state_dict)
         else:
