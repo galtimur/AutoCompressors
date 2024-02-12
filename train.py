@@ -24,10 +24,6 @@ from config_parser import parse_config
 import shutil
 from pathlib import Path
 
-from accelerate import Accelerator
-
-accelerator = Accelerator()
-
 from data import load_raw_dataset, preprocess_datasets, load_preprocessed_datasets
 
 from fast_attention import patch_opt
@@ -84,8 +80,6 @@ def main():
     )
     logger.info(f"Training/evaluation parameters {training_args}")
 
-
-
     # load_datasets
     if not training_args.do_train:
         data_args.preprocessed_train_datasets = []
@@ -124,8 +118,6 @@ def main():
                 else:
                     eval_dataset[key] = lm_datasets[key]
 
-
-
     # Detecting last checkpoint.
     last_checkpoint = None
     if training_args.resume_from_checkpoint:
@@ -138,10 +130,8 @@ def main():
         else:
             print(f"Found checkpoint {last_checkpoint}. Using this checkpoint to resume training.")
 
-
     # Set seed before initializing model.
     set_seed(training_args.seed)
-
 
     tokenizer_kwargs = {
         "cache_dir": model_args.cache_dir,
@@ -266,10 +256,7 @@ def main():
         # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=training_args.warmup_steps, num_training_steps=num_training_steps)
     tokenizer.padding = True
 
-    training_args.eval_steps = 10
-
     MyEvalCallback = EvalCallback()
-
     trainer = SubstepTrainer(
         model=model,
         args=training_args,

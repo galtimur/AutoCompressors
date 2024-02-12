@@ -11,8 +11,6 @@ defaults:
   logging_steps: 1
   add_special_tokens: false
   use_fast_tokenizer: false
-  num_gpus: 2
-  num_nodes: 1
   node: "localhost"
   accumulate_summary: true
   remove_unused_columns: false
