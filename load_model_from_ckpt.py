@@ -75,10 +75,13 @@ def load_lora_model_from_ckpt(checkpoint_path: str, merged_config: dict):
 
 
 def load_model_from_ckpt(checkpoint_path: str | Path,
+                         base_model_dir: str | Path | None = None
                          ) -> tuple[LlamaAutoCompressorModel, Tokenizer, dict]:
-
     checkpoint_path = Path(checkpoint_path)
-    base_folder = checkpoint_path.parent
+    if base_model_dir is None:
+        base_folder = checkpoint_path.parent
+    else:
+        base_folder = Path(base_model_dir)
     main_folder = base_folder / "base_model"
 
     config, merged_config = load_flat_config(main_folder / "config_base_model.yaml")
