@@ -89,6 +89,8 @@ def load_model_from_ckpt(checkpoint_path: str):
 
     return model, tokenizer, merged_config
 
-# checkpoint_path = "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_embed_only_test/checkpoint-9900"
-checkpoint_path = "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50/checkpoint-2250"
-model, tokenizer, run_config = load_model_from_ckpt(checkpoint_path)
+
+if __name__ == '__main__':
+    # checkpoint_path = "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_embed_only_test/checkpoint-9900"
+    checkpoint_path = "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50/checkpoint-2250"
+    model, tokenizer, run_config = load_model_from_ckpt(checkpoint_path)
