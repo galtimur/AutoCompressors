@@ -47,13 +47,13 @@ def load_only_embed_model_from_ckpt(checkpoint_path: str, merged_config):
     return model, tokenizer
 
 
-def load_lora_model_from_ckpt(checkpoint_path: str, merged_config: dict):
+def load_lora_model_from_ckpt(checkpoint_path: str | Path,
+                              base_model_dir: str | Path,
+                              merged_config: dict) -> tuple[LlamaAutoCompressorModel, Tokenizer]:
     checkpoint_path = Path(checkpoint_path)
-    base_folder = checkpoint_path.parent
-    main_folder = base_folder / "base_model"
-    config = LlamaConfig.from_pretrained(main_folder)
+    config = LlamaConfig.from_pretrained(base_model_dir)
 
-    model = LlamaAutoCompressorModel.from_pretrained(main_folder, config=config, torch_dtype=config.torch_dtype)
+    model = LlamaAutoCompressorModel.from_pretrained(checkpoint_path, config=config, torch_dtype=config.torch_dtype)
 
     try:
         model = PeftModel.from_pretrained(model, checkpoint_path)
@@ -80,14 +80,16 @@ def load_model_from_ckpt(checkpoint_path: str | Path,
     checkpoint_path = Path(checkpoint_path)
     if base_model_dir is None:
         base_folder = checkpoint_path.parent
+        main_folder = base_folder / "base_model"
     else:
-        base_folder = Path(base_model_dir)
-    main_folder = base_folder / "base_model"
+        main_folder = Path(base_model_dir)
 
     config, merged_config = load_flat_config(main_folder / "config_base_model.yaml")
+    print(merged_config)
 
     if merged_config["lora"]:
-        model, tokenizer = load_lora_model_from_ckpt(checkpoint_path, merged_config)
+        print(checkpoint_path)
+        model, tokenizer = load_lora_model_from_ckpt(checkpoint_path, base_model_dir, merged_config)
         # TODO If you want, I can add function that saves the fused model as a checkpoint
         print("Loaded LORA model")
     elif merged_config["train_embed_only"]:
