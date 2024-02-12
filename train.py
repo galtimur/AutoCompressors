@@ -19,7 +19,7 @@ from transformers.utils.versions import require_version
 
 from substep_trainer import SubstepTrainer
 from base_trainer import EvalCallback
-from utils import get_last_checkpoint_or_last_model, parse_checkpoint_step, load_check_merging
+from utils import get_last_checkpoint_or_last_model, parse_checkpoint_step, load_check_merging, wandb_setup
 from config_parser import parse_config
 import shutil
 from pathlib import Path
@@ -55,7 +55,7 @@ def main():
     # else:
     #     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     config_path = "configs/config.yaml"
-    model_args, data_args, training_args = parse_config(config_path)
+    model_args, data_args, training_args, merge_config = parse_config(config_path)
 
     # import pydevd_pycharm
     # pydevd_pycharm.settrace('localhost', port=2000, stdoutToServer=True, stderrToServer=True)
@@ -276,6 +276,18 @@ def main():
             trainer._load_from_checkpoint(last_checkpoint)
 
         process_indx = trainer.accelerator.state.process_index
+
+        if merge_config["resume_run"]:
+            wandb_id_file = os.path.join(last_checkpoint, "wandb_id")
+            if os.path.exists(wandb_id_file):
+                with open(wandb_id_file, "r") as f:
+                    run_id = f.read()
+
+                wandb_setup(run_id)
+                print(f"resuming Wandb run id = {run_id}")
+            else:
+                print(f"Could not find run id in ckpt folder. Initializing new run")
+
         print(f"--- Model loaded in process {process_indx} ---")
     else:
         logger.info("Using a model loaded from scratch!")

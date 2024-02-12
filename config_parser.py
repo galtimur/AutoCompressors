@@ -38,7 +38,7 @@ def parse_config(config_path):
     #     run_name_suffix += "_check"
     if config["train_embed_only"]:
         run_name_suffix += "_embed_only"
-    # run_name_suffix += "_test"
+    run_name_suffix += "_test"
 
     # run_name=f"{config['base_model']}_config['run_name_suffix']"
     config["run_name"] = f"{config['run_name']}_{run_name_suffix}"
@@ -53,6 +53,7 @@ def parse_config(config_path):
     keys_to_remove = [
         "base_model",
         "checkpointing",
+        "resume_run",
         "dir",
         "eval_domains",
         "node",
@@ -65,10 +66,11 @@ def parse_config(config_path):
         "train_domains",
     ]
 
+    config_run = config.copy()
     config = {k: v for k, v in config.items() if k not in keys_to_remove}
     parser = HfArgumentParser(
         (ModelArguments, DataTrainingArguments, TrainingArguments)
     )
     model_args_dict, data_args_dict, training_args_dict = parser.parse_dict(config)
 
-    return model_args_dict, data_args_dict, training_args_dict
+    return model_args_dict, data_args_dict, training_args_dict, config_run

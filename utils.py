@@ -115,3 +115,8 @@ def load_check_merging(last_checkpoint: str, trainer):
         time.sleep(0.2)
     if trainer.state.is_local_process_zero and trainer.state.is_world_process_zero:
         shutil.rmtree(temp_folder)
+
+def wandb_setup(run_id):
+
+    os.environ["WANDB_RESUME"] = "must"
+    os.environ["WANDB_RUN_ID"] = run_id
