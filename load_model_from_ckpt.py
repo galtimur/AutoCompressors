@@ -1,13 +1,14 @@
-from auto_compressor import LlamaAutoCompressorModel
-from transformers import LlamaConfig, AutoTokenizer
-from huggingface_hub.utils import HFValidationError
-from peft import PeftModel, get_peft_model, LoraConfig
 from pathlib import Path
 
-import os
+from huggingface_hub.utils import HFValidationError
 from omegaconf import OmegaConf
+from peft import PeftModel, get_peft_model, LoraConfig
+from tokenizers import Tokenizer
+from transformers import LlamaConfig, AutoTokenizer
 
+from auto_compressor import LlamaAutoCompressorModel
 from utils import merge_ckpts
+
 
 # TODO check that llama is the model
 # if "llama" in (model_args.model_name_or_path or model_args.config_name).lower():
@@ -73,7 +74,8 @@ def load_lora_model_from_ckpt(checkpoint_path: str, merged_config: dict):
     return model, tokenizer
 
 
-def load_model_from_ckpt(checkpoint_path: str):
+def load_model_from_ckpt(checkpoint_path: str | Path,
+                         ) -> tuple[LlamaAutoCompressorModel, Tokenizer, dict]:
 
     checkpoint_path = Path(checkpoint_path)
     base_folder = checkpoint_path.parent
@@ -96,5 +98,5 @@ def load_model_from_ckpt(checkpoint_path: str):
 
 if __name__ == '__main__':
     # checkpoint_path = "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_embed_only_test/checkpoint-9900"
-    checkpoint_path = "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50/checkpoint-2250"
-    model, tokenizer, run_config = load_model_from_ckpt(checkpoint_path)
+    ckpt_path = "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50/checkpoint-2250"
+    model, tokenizer, run_config = load_model_from_ckpt(ckpt_path)
