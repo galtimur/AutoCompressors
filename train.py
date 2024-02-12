@@ -256,6 +256,7 @@ def main():
         # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=training_args.warmup_steps, num_training_steps=num_training_steps)
     tokenizer.padding = True
 
+    # TODO add run_id
     MyEvalCallback = EvalCallback()
     trainer = SubstepTrainer(
         model=model,

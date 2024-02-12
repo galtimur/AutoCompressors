@@ -1,5 +1,5 @@
 from auto_compressor import LlamaAutoCompressorModel
-from transformers import LlamaConfig
+from transformers import LlamaConfig, AutoTokenizer
 from huggingface_hub.utils import HFValidationError
 from peft import PeftModel, get_peft_model, LoraConfig
 from pathlib import Path
@@ -22,7 +22,7 @@ def load_flat_config(config_path):
 
     return config, merged_config
 
-def load_only_embed_model_from_ckpt(checkpoint_path: str):
+def load_only_embed_model_from_ckpt(checkpoint_path: str, merged_config):
 
     checkpoint_path = Path(checkpoint_path)
     base_folder = checkpoint_path.parent
@@ -39,20 +39,17 @@ def load_only_embed_model_from_ckpt(checkpoint_path: str):
         torch_dtype=config.torch_dtype,
     )
 
-    run_config = OmegaConf.load(main_folder / "config_base_model.yaml")
-    run_config = OmegaConf.to_container(run_config, resolve=True)
+    tokenizer = AutoTokenizer.from_pretrained(temp_folder, use_fast=merged_config["use_fast_tokenizer"])
 
-    return model, run_config
+    return model, tokenizer
 
-def load_lora_model_from_ckpt(checkpoint_path: str):
+def load_lora_model_from_ckpt(checkpoint_path: str, merged_config: dict):
     checkpoint_path = Path(checkpoint_path)
     base_folder = checkpoint_path.parent
     main_folder = base_folder / "base_model"
     config = LlamaConfig.from_pretrained(main_folder)
 
     model = LlamaAutoCompressorModel.from_pretrained(main_folder, config=config, torch_dtype=config.torch_dtype)
-    run_config = OmegaConf.load(main_folder / "config_base_model.yaml")
-    run_config = OmegaConf.to_container(run_config, resolve=True)
 
     try:
         model = PeftModel.from_pretrained(model, checkpoint_path)
@@ -68,7 +65,9 @@ def load_lora_model_from_ckpt(checkpoint_path: str):
 
     model = model.merge_and_unload()
 
-    return model, run_config
+    tokenizer = AutoTokenizer.from_pretrained(checkpoint_path, use_fast=merged_config["use_fast_tokenizer"])
+
+    return model, tokenizer
 
 def load_model_from_ckpt(checkpoint_path: str):
 
@@ -79,17 +78,17 @@ def load_model_from_ckpt(checkpoint_path: str):
     config, merged_config = load_flat_config(main_folder / "config_base_model.yaml")
 
     if merged_config["lora"]:
-        model, run_config = load_lora_model_from_ckpt(checkpoint_path)
+        model, tokenizer = load_lora_model_from_ckpt(checkpoint_path, merged_config)
         # TODO If you want, I can add function that saves the fused model as a checkpoint
         print("Loaded LORA model")
     elif merged_config["train_embed_only"]:
-        model, run_config = load_only_embed_model_from_ckpt(checkpoint_path)
+        model, tokenizer = load_only_embed_model_from_ckpt(checkpoint_path, merged_config)
         print("Loaded embeddings only model")
     else:
         print("Loading for this config state is not implemented yet")
 
-    return model, run_config
+    return model, tokenizer, merged_config
 
 # checkpoint_path = "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_embed_only_test/checkpoint-9900"
 checkpoint_path = "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50/checkpoint-2250"
-model, run_config = load_model_from_ckpt(checkpoint_path)
+model, tokenizer, run_config = load_model_from_ckpt(checkpoint_path)
