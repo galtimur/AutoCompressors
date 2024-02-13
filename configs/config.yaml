@@ -50,8 +50,8 @@ training:
   randomize_substeps: true
   segment_gradient_checkpointing: false
   learning_rate: 4e-3
-  resume_from_checkpoint: true
-  checkpoint_path: "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_embed_only_test/checkpoint-25"
+  resume_from_checkpoint: false
+  # checkpoint_path: "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_embed_only_test/checkpoint-25"
   checkpointing: true  # If your training script supports checkpointing
   bf16: true
   train_embed_only: true
