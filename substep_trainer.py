@@ -25,6 +25,9 @@ from transformers.utils import logging
 
 logger = logging.get_logger(__name__)
 
+def convert_past_kv_bfloat_and_detach(past_kv):
+    return tuple([(past_kv_layer[0].detach().bfloat16(), past_kv_layer[1]) for past_kv_layer in past_kv])
+
 
 class DataCollator:
     """Simple data collator for language modeling with padding."""
@@ -154,6 +157,7 @@ class SubstepTrainer(BaseTrainer):
         model: nn.Module,
         inputs: Dict[str, Union[torch.Tensor, Any]],
         softprompt: Optional[torch.FloatTensor] = None,
+        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         segment_lengths = None
         ) -> torch.Tensor:
         """Performs a training substep, after which softprompts are detached and gradients are accumulated"""
@@ -161,10 +165,12 @@ class SubstepTrainer(BaseTrainer):
         model.train()
         inputs = self._prepare_inputs(inputs)
         with self.compute_loss_context_manager():
-            out = model(**inputs, softprompt=softprompt, segment_lengths=segment_lengths, use_cache=False, output_softprompt=True)
+            out = model(**inputs, softprompt=softprompt, past_key_values=past_key_values, segment_lengths=segment_lengths, use_cache=self.args.use_kv, output_softprompt=True)
             loss = out.loss
             # TODO fix it properly not to move bf16-fp32-bf16 every time
             softprompt = out.softprompt.detach().bfloat16()
+            past_key_values = convert_past_kv_bfloat_and_detach(out.past_key_values["past_key_values"])
+        # TODO chack that we pass n_gpu properly.
         if self.args.n_gpu > 1:
             loss = loss.mean()  # mean() to average on multi-gpu parallel training
 
@@ -180,7 +186,7 @@ class SubstepTrainer(BaseTrainer):
         else:
             loss.backward() # TODO rewrite using accelerate
 
-        return loss.detach(), softprompt
+        return loss.detach(), softprompt, past_key_values
 
     def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> torch.Tensor:
         """One training step consists of many training_substeps.
@@ -189,10 +195,11 @@ class SubstepTrainer(BaseTrainer):
         although substeps also implicitly accumulated gradient."""
 
         total_loss = 0
-        softprompt=None
+        softprompt = None
+        past_key_values = None
         for substep in range(self.args.training_substeps):
             input_slice, segment_lengths = self.segment_input(inputs, substep)
-            loss, softprompt = self.training_substep(model, input_slice, softprompt, segment_lengths)
+            loss, softprompt, past_key_values = self.training_substep(model, input_slice, softprompt, past_key_values, segment_lengths)
             total_loss += loss
             self.loss_log[f"substep_{substep}"] += loss
             self.substep_count+=1

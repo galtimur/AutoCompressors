@@ -3,8 +3,8 @@ defaults:
   do_eval: false
   base_model: "princeton-nlp/Sheared-LLaMA-1.3B"
   total: 30 # total batch size # TODO rename later
-  per_device_eval_batch_size: 2
-  per_device_train_batch_size: 2
+  per_device_eval_batch_size: 1
+  per_device_train_batch_size: 1
   warmup_steps: 5000
   save_steps: 300
   num_train_epochs: 1
@@ -44,9 +44,10 @@ output:
 
 training:
   summary_accumulation: true
-  segments_per_substep: 2
+  use_kv: true
+  segments_per_substep: 4
   training_substeps: 3
-  summary_length: 50
+  summary_length: 5
   randomize_substeps: true
   segment_gradient_checkpointing: false
   learning_rate: 4e-3
@@ -70,4 +71,4 @@ wandb:
   run_name: "LLaMA-1.3B"
   dir: "/mnt/data2/galimzyanov/autocompressor/checkpoints/"
   project: "autocompressors"
-  resume_run: true
+#  resume_run: true

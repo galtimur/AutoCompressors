@@ -52,6 +52,11 @@ class TrainingArguments(HfTrainingArguments):
         metadata={"help": "Train only summary embeddings, freeze model"}
     )
 
+    use_kv: bool = field(
+        default=False,
+        metadata={"help": "Pass info not from summary embeddings, but through cashed attn key-values"}
+    )
+
     use_accelerate: bool = field(
         default=False,
         metadata={"help": "Whether to use accelerate for distributed training"}

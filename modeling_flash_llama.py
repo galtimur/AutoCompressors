@@ -318,13 +318,15 @@ class LlamaAttention(nn.Module):
         if has_layer_past:
             new_len = past_len+q.size(1)
             if new_len > past_kv.size(1):
-                past_kv = torch.cat([past_kv, torch.empty(hidden_states.size(0), 256, 2, kv.size(3), kv.size(4), dtype=kv.dtype, device=kv.device)], 1)
-            past_kv[:, past_len:new_len] = kv
-            kv = past_kv[:, :new_len]
-        else:
-            past_kv = kv
+                # past_kv = torch.cat([past_kv, torch.empty(hidden_states.size(0), 256, 2, kv.size(3), kv.size(4), dtype=kv.dtype, device=kv.device)], 1)
+                kv = torch.cat([past_kv, kv], 1)
+            # past_kv[:, past_len:new_len] = kv
+            # kv = past_kv[:, :new_len]
+        # else:
+        #     past_kv = kv
 
-        past_key_value = (past_kv, past_len+q.size(1)) if use_cache else None
+        # past_key_value = (past_kv, past_len+q.size(1)) if use_cache else None
+        past_key_value = (kv, past_len + q.size(1)) if use_cache else None
 
         if unpadded_lengths is not None:
             # varlen, ignore padding tokens, efficient for large batch with many paddings

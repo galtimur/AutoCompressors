@@ -56,6 +56,7 @@ def main():
     #     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     config_path = "configs/config.yaml"
     model_args, data_args, training_args, merge_config = parse_config(config_path)
+    model_args.use_kv = training_args.use_kv
 
     # import pydevd_pycharm
     # pydevd_pycharm.settrace('localhost', port=2000, stdoutToServer=True, stderrToServer=True)
@@ -173,6 +174,7 @@ def main():
     config.summary_length = training_args.summary_length
     config.accumulate_summary = training_args.accumulate_summary
     config.segment_gradient_checkpointing = training_args.segment_gradient_checkpointing
+    config.use_kv = training_args.use_kv
 
     # Create model
     if "llama" in (model_args.model_name_or_path or model_args.config_name).lower():
