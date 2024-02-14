@@ -170,7 +170,7 @@ class SubstepTrainer(BaseTrainer):
             # TODO fix it properly not to move bf16-fp32-bf16 every time
             softprompt = out.softprompt.detach().bfloat16()
             past_key_values = convert_past_kv_bfloat_and_detach(out.past_key_values["past_key_values"])
-        # TODO chack that we pass n_gpu properly.
+        # TODO check that we pass n_gpu properly.
         if self.args.n_gpu > 1:
             loss = loss.mean()  # mean() to average on multi-gpu parallel training
 

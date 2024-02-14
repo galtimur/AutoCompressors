@@ -18,10 +18,10 @@ logger = logging.getLogger(__name__)
 
 PastKVType = Optional[Tuple[Tuple[torch.FloatTensor]]]
 
-def cut_past_kv(past_kv: PastKVType | None, len: int):
+def cut_past_kv(past_kv: PastKVType | None, length: int):
     if past_kv is None:
         return None
-    return tuple([(past_kv_layer[0][:, -len:], len) for past_kv_layer in past_kv])
+    return tuple([(past_kv_layer[0][:, -length:], length) for past_kv_layer in past_kv])
 
 def accum_past_kv(past_key_values: PastKVType, new_past_kv: PastKVType):
 
@@ -132,7 +132,7 @@ class AutoCompressorMixin:
                 return_dict=True,)
 
         if segment_gradient_checkpointing:
-            # TODO what happens here?
+            # TODO we did not altered this branch
             outputs = torch.utils.checkpoint.checkpoint(
                 decoder, segment_embeds, segment_attention_mask, past_key_values,
                 softprompt_length, past_key_values_softprompt_length, summary_length,
