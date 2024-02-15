@@ -259,7 +259,7 @@ def main():
     tokenizer.padding = True
 
     # TODO add run_id
-    MyEvalCallback = EvalCallback()
+    MyEvalCallback = EvalCallback(batch_size = 5, max_samples = 300, split_size = 1536)
     trainer = SubstepTrainer(
         model=model,
         args=training_args,

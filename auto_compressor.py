@@ -195,7 +195,8 @@ class AutoCompressorMixin:
         else:
             summary_token_embeds = inputs_embeds[:,:0]
 
-        # If no past_key_values are given, we will process the sequence in multiple segments
+        # If no past_key_values are given, or we use past key-values in architecture,
+        # we will process the sequence in multiple segments
         if past_key_values is None or self.summary_config.use_kv:
             segment_lengths = segment_lengths if segment_lengths is not None else input_ids.size(1)
 
@@ -233,6 +234,7 @@ class AutoCompressorMixin:
         output_attentions_list = []
         output_hidden_states_list = []
 
+        # If we use keys-values, we ommit softprompts in model input
         if softprompt is None or self.config.use_kv:
             softprompt = inputs_embeds[:,:0,:]
 

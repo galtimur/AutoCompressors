@@ -26,6 +26,8 @@ from transformers.utils import logging
 logger = logging.get_logger(__name__)
 
 def convert_past_kv_bfloat_and_detach(past_kv):
+    if past_kv is None:
+        return None
     return tuple([(past_kv_layer[0].detach().bfloat16(), past_kv_layer[1]) for past_kv_layer in past_kv])
 
 
@@ -116,6 +118,7 @@ class SubstepTrainer(BaseTrainer):
 
         total_loss = 0
         softprompt = None
+        past_key_values = None
         metrics = {}
         for substep in range(self.args.training_substeps):
             input_slice, segment_lengths = self.segment_input(inputs, substep)
@@ -125,8 +128,10 @@ class SubstepTrainer(BaseTrainer):
                 out = model(**inputs, segment_lengths=sum(self.args.segment_lengths), use_cache=False)
                 softprompt = None
             else:
-                out = model(**input_slice, softprompt=softprompt, segment_lengths=segment_lengths, use_cache=False, output_softprompt=True)
+                out = model(**inputs, softprompt=softprompt, past_key_values=past_key_values, segment_lengths=segment_lengths,
+                      use_cache=self.args.use_kv, output_softprompt=True)
                 softprompt = out.softprompt
+                past_key_values = out.past_key_values["past_key_values"]
             loss = out.loss
             total_loss += loss
 

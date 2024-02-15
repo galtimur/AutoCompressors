@@ -79,12 +79,13 @@ import wandb
 import os
 from datasets import load_dataset
 class EvalCallback(TrainerCallback):
-    def __init__(self):
+    def __init__(self, batch_size = 5, max_samples = 300, split_size = 1536):
+
+        self.batch_size = batch_size
+        self.max_samples = max_samples
         self.pattern = re.compile(r'^chunk_\d+_(loss|ppl)$')
-        self.batch_size = 5
-        self.max_samples = 300
         self.ds = load_dataset('awettig/RedPajama-combined-15B-6K-llama', split='test')
-        self.split_size = 1536
+        self.split_size = split_size
     def on_save(self, args, state, logs, model, **kwargs):
         # result = eval_result["chunk_0_loss"]
         if state.is_local_process_zero and state.is_world_process_zero:
