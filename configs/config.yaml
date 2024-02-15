@@ -45,7 +45,7 @@ output:
 training:
   summary_accumulation: true
   use_kv: true
-  segments_per_substep: 4
+  segments_per_substep: 2
   training_substeps: 3
   summary_length: 5
   randomize_substeps: true
