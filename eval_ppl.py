@@ -11,7 +11,6 @@ from tqdm import tqdm
 
 from auto_compressor import LlamaAutoCompressorModel
 
-# TODO !!!! CHECK, how we use paskt key values her.
 
 def equal_size_splits(text_or_token_ids: str | Tensor,
                       split_size: int,

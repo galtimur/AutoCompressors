@@ -17,7 +17,6 @@ def parse_config(config_path):
     config["num_processes"] = accelerator.num_processes
 
     # Compute additional values
-    # TODO pass num_gpus from accelerate config
     config["total_per_device"] = config["total"] // config["num_processes"]
 
     config["config_name"] = config["base_model"]

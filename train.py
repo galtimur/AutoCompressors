@@ -108,6 +108,10 @@ def main():
             train_dataset = train_dataset.select(range(max_train_samples))
         print(f"Total number of training data: {dataset_length}")
 
+    example = next(iter(train_dataset))
+    context_size = len(example["labels"])
+    segment_size = context_size//(training_args.training_substeps*training_args.segments_per_substep)
+
     if training_args.do_eval:
         # max eval sample deleted
         eval_dataset = {}
@@ -258,8 +262,7 @@ def main():
         # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=training_args.warmup_steps, num_training_steps=num_training_steps)
     tokenizer.padding = True
 
-    # TODO add run_id
-    MyEvalCallback = EvalCallback(batch_size = 5, max_samples = 300, split_size = 1536)
+    MyEvalCallback = EvalCallback(batch_size = 5, max_samples = 300, split_size = segment_size)
     trainer = SubstepTrainer(
         model=model,
         args=training_args,

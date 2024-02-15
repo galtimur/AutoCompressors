@@ -3,6 +3,7 @@ import os
 
 from base_trainer import BaseTrainer
 import math
+import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import Dataset
@@ -225,7 +226,7 @@ class SubstepTrainer(BaseTrainer):
 
         return total_loss / self.args.training_substeps
 
-    def random_segment_lengths(self, input_ids, num_segments):
+    def random_segment_lengths_old(self, input_ids, num_segments):
         """Returns a list of random segment lengths that sum up to num_segments"""
         max_positions = self.model.config.max_position_embeddings
         if num_segments > 1:
@@ -234,6 +235,8 @@ class SubstepTrainer(BaseTrainer):
             total_variable_length = input_ids.size(1) - min_segment_length * num_segments
             if num_segments - 1 > total_variable_length:
                 raise ValueError(f"The specified number of segments_per_substep cannot cover the entire input sequence.")
+            # This is brain fucking. More understadable is randint:
+            # breakpoints = torch.randint(total_variable_length, size = num_segments - 1)
             breakpoints = torch.multinomial(torch.ones(total_variable_length), num_segments - 1)
             segment_lengths = torch.diff(breakpoints.sort(-1).values,
                                         prepend=torch.tensor([0]),
@@ -242,6 +245,33 @@ class SubstepTrainer(BaseTrainer):
         else:
             segment_lengths = [input_ids.size(1)]
         return segment_lengths
+
+    def random_segment_lengths(self, input_ids, num_segments, min_segment_length=5):
+
+        """Returns a list of random segment lengths that sum up to num_segments
+        std: standard deviation of the segments length in terms of ratio of the average segment length
+        """
+        std = self.args.randomize_std
+        if num_segments > 1:
+
+            total_variable_length = input_ids.size(1) - min_segment_length * num_segments
+            if num_segments - 1 > total_variable_length:
+                raise ValueError(f"The specified number of segments_per_substep cannot cover the entire input sequence.")
+
+            av_size = total_variable_length/num_segments
+            window = av_size*std
+
+            # segment_lengths = np.random.normal(av_size, std, num_segments)
+            segment_lengths = np.random.uniform(av_size - window, av_size + window, num_segments)
+            excess = (sum(segment_lengths) - total_variable_length) / num_segments
+            segment_lengths = np.round(segment_lengths - excess).astype(int)
+            excess = sum(segment_lengths) - total_variable_length
+            segment_lengths[-1] -= excess
+            segment_lengths = (segment_lengths + min_segment_length).tolist()
+        else:
+            segment_lengths = [input_ids.size(1)]
+        return segment_lengths
+
 
     def segment_input(self, inputs, substep):
         """Returns the sliced inputs and the random segment lengths when randomize_substeps=True"""

@@ -30,6 +30,12 @@ class TrainingArguments(HfTrainingArguments):
         default=False,
         metadata={"help": "apply  strategy to determine substep lengths in each substep"}
     )
+
+    randomize_std: Optional[float] = field(
+        default=0.2,
+        metadata={"help": "std of the randomized size of the segments (in ratio of avg size)"}
+    )
+
     segments_per_substep: int = field(
         default=2,
         metadata={"help": "Number of substeps per segments when using --randomize_substep"}

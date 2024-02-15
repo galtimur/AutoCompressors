@@ -44,11 +44,12 @@ output:
 
 training:
   summary_accumulation: true
-  use_kv: false
+  use_kv: true
   segments_per_substep: 4
   training_substeps: 3
   summary_length: 5
   randomize_substeps: true
+  randomize_std: 0.2
   segment_gradient_checkpointing: false
   learning_rate: 4e-3
   resume_from_checkpoint: false
