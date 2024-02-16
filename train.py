@@ -92,6 +92,7 @@ def main():
 
         lm_datasets, dataset_length = load_preprocessed_datasets(data_args, model_args)
     else:
+        print("!!! Loading Raw dataset !!!")
         raw_datasets = load_raw_dataset(data_args, model_args)
         lm_datasets = preprocess_datasets(raw_datasets, tokenizer, data_args, training_args)
 
