@@ -264,8 +264,9 @@ def main():
         # num_training_steps = len(train_dataset) * training_args.num_train_epochs
         # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=training_args.warmup_steps, num_training_steps=num_training_steps)
     tokenizer.padding = True
-
-    MyEvalCallback = EvalCallback(batch_size = 5, max_samples = 300, split_size = segment_size)
+    print("---- line 267 ------")
+    MyEvalCallback = EvalCallback(batch_size = 5, max_samples = 300, split_size = segment_size, streaming=data_args.streaming_data)
+    print("---- line 269 ------")
     trainer = SubstepTrainer(
         model=model,
         args=training_args,
@@ -299,7 +300,7 @@ def main():
         print(f"--- Model loaded in process {process_indx} ---")
     else:
         logger.info("Using a model loaded from scratch!")
-
+    print("---- line 303 ------")
     # Training
     if training_args.do_train:
         save_base_model(config_path, trainer)

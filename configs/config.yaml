@@ -6,7 +6,7 @@ defaults:
   per_device_eval_batch_size: 1
   per_device_train_batch_size: 1
   warmup_steps: 5000
-  save_steps: 300
+  save_steps: 5
   num_train_epochs: 1
   logging_steps: 1
   add_special_tokens: false
@@ -40,11 +40,11 @@ data:
 output:
   log_level: critical
   disable_tqdm: true
-  out_dir: "/mnt/data2/galimzyanov/autocompressor/checkpoints/"
+  out_dir: "checkpoints/" #"/mnt/data2/galimzyanov/autocompressor/checkpoints/"
 
 training:
   summary_accumulation: true
-  lora: true
+  lora: false
   train_embed_only: true
   use_kv: true
   segments_per_substep: 2
@@ -70,6 +70,6 @@ lora:
 wandb:
   report_to: "wandb"
   run_name: "LLaMA-1.3B"
-  dir: "/mnt/data2/galimzyanov/autocompressor/checkpoints/"
+  dir: "checkpoints/" #"/mnt/data2/galimzyanov/autocompressor/checkpoints/"
   project: "autocompressors"
 #  resume_run: true
