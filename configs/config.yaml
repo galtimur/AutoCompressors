@@ -3,8 +3,8 @@ defaults:
   do_eval: false
   base_model: "princeton-nlp/Sheared-LLaMA-1.3B"
   total: 30 # total batch size # TODO rename later
-  per_device_eval_batch_size: 1
-  per_device_train_batch_size: 1
+  per_device_eval_batch_size: 2
+  per_device_train_batch_size: 2
   warmup_steps: 5000
   save_steps: 300
   num_train_epochs: 1
@@ -35,7 +35,7 @@ data:
   dataloader_num_workers: 0
   max_train_samples: null
   # cache_dir: "/mnt/data2/galimzyanov/autocompressor/temp/"
-  streaming_data: false
+  streaming_data: fasle
 
 output:
   log_level: critical
@@ -44,20 +44,20 @@ output:
 
 training:
   summary_accumulation: true
+  lora: true
+  train_embed_only: false
   use_kv: true
   segments_per_substep: 2
   training_substeps: 3
-  summary_length: 5
+  summary_length: 50
   randomize_substeps: true
   randomize_std: 0.2
   segment_gradient_checkpointing: false
-  learning_rate: 4e-3
+  learning_rate: 8e-4
   resume_from_checkpoint: false
   # checkpoint_path: "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_embed_only_test/checkpoint-25"
   checkpointing: true  # If your training script supports checkpointing
   bf16: true
-  train_embed_only: true
-  lora: false
   use_accelerate: true
 
 lora:

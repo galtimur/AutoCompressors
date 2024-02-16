@@ -6,6 +6,7 @@ import torch
 
 import datasets
 import transformers
+from datasets import Dataset
 from transformers import (
     CONFIG_MAPPING,
     AutoConfig,
@@ -89,7 +90,7 @@ def main():
         print("train dataset", data_args.preprocessed_train_datasets)
         print("validation dataset", data_args.preprocessed_validation_datasets)
 
-        lm_datasets = load_preprocessed_datasets(data_args, model_args)
+        lm_datasets, dataset_length = load_preprocessed_datasets(data_args, model_args)
     else:
         raw_datasets = load_raw_dataset(data_args, model_args)
         lm_datasets = preprocess_datasets(raw_datasets, tokenizer, data_args, training_args)
@@ -99,13 +100,14 @@ def main():
             raise ValueError("--do_train requires a train dataset")
         train_dataset = lm_datasets["train"]
         if data_args.streaming_data:
-            dataset_length = 200000 # TODO replace by real data size
             training_args.max_steps = dataset_length
         else:
             dataset_length = len(train_dataset)
-        if data_args.max_train_samples is not None and not data_args.streaming_data:
-            max_train_samples = min(dataset_length, data_args.max_train_samples)
-            train_dataset = train_dataset.select(range(max_train_samples))
+        max_train_samples = dataset_length
+        if data_args.max_train_samples is not None:
+            max_train_samples = min(max_train_samples, data_args.max_train_samples)
+            if not data_args.streaming_data:
+                train_dataset = train_dataset.select(range(max_train_samples))
         print(f"Total number of training data: {dataset_length}")
 
     example = next(iter(train_dataset))
@@ -307,10 +309,7 @@ def main():
 
         metrics = train_result.metrics
 
-        max_train_samples = (
-            data_args.max_train_samples if data_args.max_train_samples is not None else len(train_dataset)
-        )
-        metrics["train_samples"] = min(max_train_samples, len(train_dataset))
+        metrics["train_samples"] = max_train_samples
 
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)

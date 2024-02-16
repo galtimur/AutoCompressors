@@ -206,6 +206,7 @@ def load_preprocessed_datasets(data_args, model_args):
     assert data_args.preprocessed_train_datasets is not None
     assert data_args.preprocessed_validation_datasets is not None
     d = {}
+    num_samples_total = 0
     for train_file in data_args.preprocessed_train_datasets:
         name = os.path.basename(train_file).split(".")[0]
         if os.path.exists(train_file):
@@ -220,7 +221,12 @@ def load_preprocessed_datasets(data_args, model_args):
             )
         d[f"train-{name}"] = data
         if not data_args.streaming_data:
-            print(f"Loaded {train_file} training data, {len(data)} examples")
+            num_samples = len(data)
+            print(f"Loaded {train_file} training data, {num_samples} examples")
+        else:
+            num_samples = data.info.splits["train"].num_examples
+            print(f"Streaming training data, {num_samples} examples. Dataset {train_file}")
+        num_samples_total += num_samples
 
     for valid_file in data_args.preprocessed_validation_datasets:
         name = os.path.basename(valid_file).split(".")[0]
@@ -244,4 +250,4 @@ def load_preprocessed_datasets(data_args, model_args):
     d["train"] = datasets.concatenate_datasets(train_data)
 
     lm_datasets = datasets.dataset_dict.DatasetDict(d)
-    return lm_datasets
+    return lm_datasets, num_samples_total
