@@ -212,6 +212,19 @@ class DataTrainingArguments:
     preprocessed_validation_datasets: List[str] = field(default_factory=list)
     add_special_tokens: Optional[bool] = field(default=False, metadata={"help": "Whether to add special tokens."})
 
+    upload_aws: bool = field(
+        default=False, metadata={"help": "Whether to upload checkpoint to AWS server."}
+    )
+    s3_bucket: Optional[str] = field(
+        default=None, metadata={"help": "AWS S3 bucket name"}
+    )
+    s3_prefix: Optional[str] = field(
+        default=None, metadata={"help": "AWS S3 prefix"}
+    )
+    s3_cred_filepath: Optional[str] = field(
+        default=None, metadata={"help": "Path to the aws credentials of files"}
+    )
+
     def __post_init__(self):
         # if self.dataset_name is None and self.train_file is None and self.validation_file is None:
             # raise ValueError("Need either a dataset name or a training/validation file.")

@@ -16,6 +16,7 @@ def load_raw_dataset(data_args, model_args):
             data_args.dataset_config_name,
             cache_dir=model_args.cache_dir,
             use_auth_token=True if model_args.use_auth_token else None,
+            streaming=data_args.streaming_data,
         )
         if "validation" not in raw_datasets.keys():
             raw_datasets["validation"] = datasets.load_dataset(
@@ -24,6 +25,7 @@ def load_raw_dataset(data_args, model_args):
                 split=f"train[:{data_args.validation_split_percentage}%]",
                 cache_dir=model_args.cache_dir,
                 use_auth_token=True if model_args.use_auth_token else None,
+                streaming=data_args.streaming_data,
             )
             raw_datasets["train"] = datasets.load_dataset(
                 data_args.dataset_name,
@@ -31,6 +33,7 @@ def load_raw_dataset(data_args, model_args):
                 split=f"train[{data_args.validation_split_percentage}%:]",
                 cache_dir=model_args.cache_dir,
                 use_auth_token=True if model_args.use_auth_token else None,
+                streaming=data_args.streaming_data,
             )
     else:
         data_files = {}
@@ -53,6 +56,7 @@ def load_raw_dataset(data_args, model_args):
             data_files=data_files,
             cache_dir=model_args.cache_dir,
             use_auth_token=True if model_args.use_auth_token else None,
+            streaming=data_args.streaming_data,
             **dataset_args,
         )
 
@@ -64,6 +68,7 @@ def load_raw_dataset(data_args, model_args):
                 split=f"train[:{data_args.validation_split_percentage}%]",
                 cache_dir=model_args.cache_dir,
                 use_auth_token=True if model_args.use_auth_token else None,
+                streaming=data_args.streaming_data,
                 **dataset_args,
             )
             raw_datasets["train"] = datasets.load_dataset(
@@ -72,6 +77,7 @@ def load_raw_dataset(data_args, model_args):
                 split=f"train[{data_args.validation_split_percentage}%:]",
                 cache_dir=model_args.cache_dir,
                 use_auth_token=True if model_args.use_auth_token else None,
+                streaming=data_args.streaming_data,
                 **dataset_args,
             )
 
@@ -237,10 +243,16 @@ def load_preprocessed_datasets(data_args, model_args):
                 valid_file,
                 split="test",
                 cache_dir=model_args.cache_dir,
-                use_auth_token=True if model_args.use_auth_token else None
+                use_auth_token=True if model_args.use_auth_token else None,
+                streaming = data_args.streaming_data
             )
+        if not data_args.streaming_data:
+            num_samples = len(data)
+            print(f"Loaded {train_file} training data, {num_samples} examples")
+        else:
+            num_samples = data.info.splits["test"].num_examples
+            print(f"Streaming validation data, {num_samples} examples. Dataset {valid_file}")
         d[f"validation-{name}"] = data
-        print(f"Loaded {valid_file} validation data, {len(data)} examples")
 
 
     train_data = []

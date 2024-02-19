@@ -19,7 +19,7 @@ from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
 
 from substep_trainer import SubstepTrainer
-from base_trainer import EvalCallback
+from base_trainer import EvalCallback, AWSSaver
 from utils import get_last_checkpoint_or_last_model, parse_checkpoint_step, load_check_merging, wandb_setup
 from config_parser import parse_config
 import shutil
@@ -92,6 +92,7 @@ def main():
 
         lm_datasets, dataset_length = load_preprocessed_datasets(data_args, model_args)
     else:
+        print("!!! Loading Raw dataset !!!")
         raw_datasets = load_raw_dataset(data_args, model_args)
         lm_datasets = preprocess_datasets(raw_datasets, tokenizer, data_args, training_args)
 
@@ -263,15 +264,19 @@ def main():
         # num_training_steps = len(train_dataset) * training_args.num_train_epochs
         # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=training_args.warmup_steps, num_training_steps=num_training_steps)
     tokenizer.padding = True
-
-    MyEvalCallback = EvalCallback(batch_size = 5, max_samples = 300, split_size = segment_size)
+    
+    # TODO add run_id
+    additional_callbacks = [EvalCallback(batch_size = 5, max_samples = 300, split_size = segment_size, streaming=data_args.streaming_data)]
+    if data_args.upload_aws:
+        additional_callbacks.append(AWSSaver(s3_bucket=data_args.s3_bucket, s3_prefix=data_args.s3_prefix, cred_file=data_args.s3_cred_filepath))
+        
     trainer = SubstepTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
         eval_dataset=eval_dataset if training_args.do_eval else None,
         tokenizer=tokenizer,
-        callbacks=[MyEvalCallback],#GradientLoggerCallback
+        callbacks=additional_callbacks,#GradientLoggerCallback
         optimizers = (optimizer, None)
     )
 
@@ -298,7 +303,7 @@ def main():
         print(f"--- Model loaded in process {process_indx} ---")
     else:
         logger.info("Using a model loaded from scratch!")
-
+    print("---- line 303 ------")
     # Training
     if training_args.do_train:
         save_base_model(config_path, trainer)
