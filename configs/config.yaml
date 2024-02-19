@@ -35,12 +35,16 @@ data:
   dataloader_num_workers: 0
   max_train_samples: null
   # cache_dir: "/mnt/data2/galimzyanov/autocompressor/temp/"
-  streaming_data: fasle
+  streaming_data: true
+  upload_aws: true
+  s3_bucket: "jettrain-experiments"
+  s3_prefix: "Timur.Galimzyanov/autocompressors/checkpoints/"
+  s3_cred_filepath: "configs/aws_credentials"
 
 output:
   log_level: critical
   disable_tqdm: true
-  out_dir: "/mnt/data2/galimzyanov/autocompressor/checkpoints/"
+  out_dir: "checkpoints/" #"/mnt/data2/galimzyanov/autocompressor/checkpoints/"
 
 training:
   summary_accumulation: true
@@ -53,7 +57,7 @@ training:
   randomize_substeps: true
   randomize_std: 0.2
   segment_gradient_checkpointing: false
-  learning_rate: 4e-4
+  learning_rate: 4e-3
   resume_from_checkpoint: false
   # checkpoint_path: "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_embed_only_test/checkpoint-25"
   checkpointing: true  # If your training script supports checkpointing
@@ -70,6 +74,6 @@ lora:
 wandb:
   report_to: "wandb"
   run_name: "LLaMA-1.3B"
-  dir: "/mnt/data2/galimzyanov/autocompressor/checkpoints/"
+  dir: "checkpoints/" #"/mnt/data2/galimzyanov/autocompressor/checkpoints/"
   project: "autocompressors"
 #  resume_run: true
