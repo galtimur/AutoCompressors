@@ -19,7 +19,7 @@ from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
 
 from substep_trainer import SubstepTrainer
-from base_trainer import EvalCallback
+from base_trainer import EvalCallback, AWSSaver
 from utils import get_last_checkpoint_or_last_model, parse_checkpoint_step, load_check_merging, wandb_setup
 from config_parser import parse_config
 import shutil
@@ -264,16 +264,19 @@ def main():
         # num_training_steps = len(train_dataset) * training_args.num_train_epochs
         # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=training_args.warmup_steps, num_training_steps=num_training_steps)
     tokenizer.padding = True
-    print("---- line 267 ------")
-    MyEvalCallback = EvalCallback(batch_size = 5, max_samples = 300, split_size = segment_size, streaming=data_args.streaming_data)
-    print("---- line 269 ------")
+    
+    # TODO add run_id
+    additional_callbacks = [EvalCallback(batch_size = 5, max_samples = 300, split_size = segment_size, streaming=data_args.streaming_data)]
+    if data_args.upload_aws:
+        additional_callbacks.append(AWSSaver(s3_bucket=data_args.s3_bucket, s3_prefix=data_args.s3_prefix, cred_file=data_args.s3_cred_filepath))
+        
     trainer = SubstepTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
         eval_dataset=eval_dataset if training_args.do_eval else None,
         tokenizer=tokenizer,
-        callbacks=[MyEvalCallback],#GradientLoggerCallback
+        callbacks=additional_callbacks,#GradientLoggerCallback
         optimizers = (optimizer, None)
     )
 
