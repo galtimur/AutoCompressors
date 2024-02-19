@@ -2,11 +2,11 @@ defaults:
   do_train: true
   do_eval: false
   base_model: "princeton-nlp/Sheared-LLaMA-1.3B"
-  total: 30 # total batch size # TODO rename later
+  total: 3 # total batch size # TODO rename later
   per_device_eval_batch_size: 2
   per_device_train_batch_size: 2
   warmup_steps: 5000
-  save_steps: 300
+  save_steps: 3
   num_train_epochs: 1
   logging_steps: 1
   add_special_tokens: false
@@ -35,7 +35,11 @@ data:
   dataloader_num_workers: 0
   max_train_samples: null
   # cache_dir: "/mnt/data2/galimzyanov/autocompressor/temp/"
-  streaming_data: false
+  streaming_data: true
+  upload_aws: true
+  s3_bucket: "jettrain-experiments"
+  s3_prefix: "Timur.Galimzyanov/autocompressors/checkpoints/"
+  s3_cred_filepath: "configs/aws_credentials"
 
 output:
   log_level: critical
