@@ -6,6 +6,7 @@ import torch
 
 import datasets
 import transformers
+from datasets import Dataset
 from transformers import (
     CONFIG_MAPPING,
     AutoConfig,
@@ -56,6 +57,7 @@ def main():
     #     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     config_path = "configs/config.yaml"
     model_args, data_args, training_args, merge_config = parse_config(config_path)
+    model_args.use_kv = training_args.use_kv
 
     # import pydevd_pycharm
     # pydevd_pycharm.settrace('localhost', port=2000, stdoutToServer=True, stderrToServer=True)
@@ -88,8 +90,9 @@ def main():
         print("train dataset", data_args.preprocessed_train_datasets)
         print("validation dataset", data_args.preprocessed_validation_datasets)
 
-        lm_datasets = load_preprocessed_datasets(data_args, model_args)
+        lm_datasets, dataset_length = load_preprocessed_datasets(data_args, model_args)
     else:
+        print("!!! Loading Raw dataset !!!")
         raw_datasets = load_raw_dataset(data_args, model_args)
         lm_datasets = preprocess_datasets(raw_datasets, tokenizer, data_args, training_args)
 
@@ -98,14 +101,19 @@ def main():
             raise ValueError("--do_train requires a train dataset")
         train_dataset = lm_datasets["train"]
         if data_args.streaming_data:
-            dataset_length = 200000 # TODO replace by real data size
             training_args.max_steps = dataset_length
         else:
             dataset_length = len(train_dataset)
-        if data_args.max_train_samples is not None and not data_args.streaming_data:
-            max_train_samples = min(dataset_length, data_args.max_train_samples)
-            train_dataset = train_dataset.select(range(max_train_samples))
+        max_train_samples = dataset_length
+        if data_args.max_train_samples is not None:
+            max_train_samples = min(max_train_samples, data_args.max_train_samples)
+            if not data_args.streaming_data:
+                train_dataset = train_dataset.select(range(max_train_samples))
         print(f"Total number of training data: {dataset_length}")
+
+    example = next(iter(train_dataset))
+    context_size = len(example["labels"])
+    segment_size = context_size//(training_args.training_substeps*training_args.segments_per_substep)
 
     if training_args.do_eval:
         # max eval sample deleted
@@ -173,6 +181,7 @@ def main():
     config.summary_length = training_args.summary_length
     config.accumulate_summary = training_args.accumulate_summary
     config.segment_gradient_checkpointing = training_args.segment_gradient_checkpointing
+    config.use_kv = training_args.use_kv
 
     # Create model
     if "llama" in (model_args.model_name_or_path or model_args.config_name).lower():
@@ -255,11 +264,12 @@ def main():
         # num_training_steps = len(train_dataset) * training_args.num_train_epochs
         # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=training_args.warmup_steps, num_training_steps=num_training_steps)
     tokenizer.padding = True
-
+    
     # TODO add run_id
-    additional_callbacks = [EvalCallback()]
+    additional_callbacks = [EvalCallback(batch_size = 5, max_samples = 300, split_size = segment_size, streaming=data_args.streaming_data)]
     if data_args.upload_aws:
         additional_callbacks.append(AWSSaver(s3_bucket=data_args.s3_bucket, s3_prefix=data_args.s3_prefix, cred_file=data_args.s3_cred_filepath))
+        
     trainer = SubstepTrainer(
         model=model,
         args=training_args,
@@ -293,7 +303,7 @@ def main():
         print(f"--- Model loaded in process {process_indx} ---")
     else:
         logger.info("Using a model loaded from scratch!")
-
+    print("---- line 303 ------")
     # Training
     if training_args.do_train:
         save_base_model(config_path, trainer)
@@ -304,10 +314,7 @@ def main():
 
         metrics = train_result.metrics
 
-        max_train_samples = (
-            data_args.max_train_samples if data_args.max_train_samples is not None else len(train_dataset)
-        )
-        metrics["train_samples"] = min(max_train_samples, len(train_dataset))
+        metrics["train_samples"] = max_train_samples
 
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)

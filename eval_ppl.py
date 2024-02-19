@@ -61,7 +61,7 @@ def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
     dl = DataLoader(ds, batch_size, collate_fn=collate_fn)
     
     samples_seen = 0
-    for samp_num, sample in enumerate(tqdm(dl)):
+    for samp_num, sample in enumerate(dl):
         # inp = ds[0]['input_ids']
         inp_ids = sample['input_ids']
         # inp_ids = torch.tensor(inp, dtype=torch.long, device=device).unsqueeze(0)

@@ -2,11 +2,11 @@ defaults:
   do_train: true
   do_eval: false
   base_model: "princeton-nlp/Sheared-LLaMA-1.3B"
-  total: 3 # total batch size # TODO rename later
+  total: 30 # total batch size # TODO rename later
   per_device_eval_batch_size: 2
   per_device_train_batch_size: 2
   warmup_steps: 5000
-  save_steps: 3
+  save_steps: 300
   num_train_epochs: 1
   logging_steps: 1
   add_special_tokens: false
@@ -44,22 +44,24 @@ data:
 output:
   log_level: critical
   disable_tqdm: true
-  out_dir: "/mnt/data2/galimzyanov/autocompressor/checkpoints/"
+  out_dir: "checkpoints/" #"/mnt/data2/galimzyanov/autocompressor/checkpoints/"
 
 training:
   summary_accumulation: true
+  lora: false
+  train_embed_only: true
+  use_kv: true
   segments_per_substep: 2
   training_substeps: 3
   summary_length: 50
   randomize_substeps: true
+  randomize_std: 0.2
   segment_gradient_checkpointing: false
   learning_rate: 4e-3
   resume_from_checkpoint: false
   # checkpoint_path: "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_embed_only_test/checkpoint-25"
   checkpointing: true  # If your training script supports checkpointing
   bf16: true
-  train_embed_only: true
-  lora: false
   use_accelerate: true
 
 lora:
@@ -72,6 +74,6 @@ lora:
 wandb:
   report_to: "wandb"
   run_name: "LLaMA-1.3B"
-  dir: "/mnt/data2/galimzyanov/autocompressor/checkpoints/"
+  dir: "checkpoints/" #"/mnt/data2/galimzyanov/autocompressor/checkpoints/"
   project: "autocompressors"
-  resume_run: true
+#  resume_run: true

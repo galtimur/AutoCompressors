@@ -17,7 +17,6 @@ def parse_config(config_path):
     config["num_processes"] = accelerator.num_processes
 
     # Compute additional values
-    # TODO pass num_gpus from accelerate config
     config["total_per_device"] = config["total"] // config["num_processes"]
 
     config["config_name"] = config["base_model"]
@@ -38,7 +37,9 @@ def parse_config(config_path):
     #     run_name_suffix += "_check"
     if config["train_embed_only"]:
         run_name_suffix += "_embed_only"
-    run_name_suffix += "_test"
+    if config["use_kv"]:
+        run_name_suffix += "_use_kv"
+    # run_name_suffix += "_test"
 
     # run_name=f"{config['base_model']}_config['run_name_suffix']"
     config["run_name"] = f"{config['run_name']}_{run_name_suffix}"
