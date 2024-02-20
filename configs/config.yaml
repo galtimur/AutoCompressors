@@ -35,8 +35,8 @@ data:
   dataloader_num_workers: 0
   max_train_samples: null
   # cache_dir: "/mnt/data2/galimzyanov/autocompressor/temp/"
-  streaming_data: true
-  upload_aws: true
+  streaming_data: false
+  upload_aws: false
   s3_bucket: "jettrain-experiments"
   s3_prefix: "Timur.Galimzyanov/autocompressors/checkpoints/"
   s3_cred_filepath: "configs/aws_credentials"
@@ -44,7 +44,7 @@ data:
 output:
   log_level: critical
   disable_tqdm: true
-  out_dir: "checkpoints/" #"/mnt/data2/galimzyanov/autocompressor/checkpoints/"
+  out_dir: "/mnt/data2/galimzyanov/autocompressor/checkpoints/"
 
 training:
   summary_accumulation: true

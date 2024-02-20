@@ -58,12 +58,9 @@ def main(config_path: str | None):
     #     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     if config_path is None:
         config_path = "configs/config.yaml"
-    print(config_path)
     model_args, data_args, training_args, merge_config = parse_config(config_path)
     model_args.use_kv = training_args.use_kv
 
-    print(merge_config)
-    return None
     # import pydevd_pycharm
     # pydevd_pycharm.settrace('localhost', port=2000, stdoutToServer=True, stderrToServer=True)
     # Setup logging
