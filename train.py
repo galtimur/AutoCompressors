@@ -101,14 +101,15 @@ def main():
             raise ValueError("--do_train requires a train dataset")
         train_dataset = lm_datasets["train"]
         if data_args.streaming_data:
-            training_args.max_steps = dataset_length
-        else:
-            dataset_length = len(train_dataset)
-        max_train_samples = dataset_length
+            training_args.max_steps = dataset_length//training_args.total_batch_size
+        # else:
+        #     dataset_length = len(train_dataset)
         if data_args.max_train_samples is not None:
-            max_train_samples = min(max_train_samples, data_args.max_train_samples)
+            max_train_samples = min(dataset_length, data_args.max_train_samples)
             if not data_args.streaming_data:
                 train_dataset = train_dataset.select(range(max_train_samples))
+        else:
+            max_train_samples = dataset_length
         print(f"Total number of training data: {dataset_length}")
 
     example = next(iter(train_dataset))

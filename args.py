@@ -12,6 +12,10 @@ class TrainingArguments(HfTrainingArguments):
         default=None,
         metadata={"help": "The maximum position embedding per segment."}
     )
+    total_batch_size: Optional[int] = field(
+        default=1,
+        metadata={"help": "Size of the accumulated batch"}
+    )
     summary_length: int = field(
         default=0,
         metadata={"help": "Number of summary tokens. 0 allocates no space for summary tokens."}
