@@ -3,6 +3,7 @@ import math
 import os
 import sys
 import torch
+import argparse
 
 import datasets
 import transformers
@@ -43,7 +44,7 @@ def save_base_model(config_path, trainer):
     shutil.copy2(config_path, os.path.join(base_model_folder, "config_base_model.yaml"))
     trainer.save_model(output_dir=base_model_folder)
 
-def main():
+def main(config_path: str | None):
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
@@ -55,10 +56,14 @@ def main():
     #     model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
     # else:
     #     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-    config_path = "configs/config.yaml"
+    if config_path is None:
+        config_path = "configs/config.yaml"
+    print(config_path)
     model_args, data_args, training_args, merge_config = parse_config(config_path)
     model_args.use_kv = training_args.use_kv
 
+    print(merge_config)
+    return None
     # import pydevd_pycharm
     # pydevd_pycharm.settrace('localhost', port=2000, stdoutToServer=True, stderrToServer=True)
     # Setup logging
@@ -352,4 +357,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', help='Path to the config file')
+    args = parser.parse_args()
+    config_path = args.config
+    main(config_path)
