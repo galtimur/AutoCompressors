@@ -306,7 +306,6 @@ def main(config_path: str | None):
         print(f"--- Model loaded in process {process_indx} ---")
     else:
         logger.info("Using a model loaded from scratch!")
-    print("---- line 303 ------")
     # Training
     if training_args.do_train:
         save_base_model(config_path, trainer)

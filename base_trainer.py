@@ -67,7 +67,7 @@ else:
 
 
 from eval_ppl import evaluate_ppl_red_pajamas
-from utils import traferse_folder, save_set, load_set
+from utils import traverse_folder, save_set, load_set
 from transformers.trainer import logger
 
 # Name of the files used for checkpointing
@@ -92,9 +92,13 @@ class EvalCallback(TrainerCallback):
     def on_save(self, args, state, logs, model, **kwargs):
         # result = eval_result["chunk_0_loss"]
         if state.is_local_process_zero and state.is_world_process_zero:
+            model_training = model.training
+            model.eval()
             eval_result = evaluate_ppl_red_pajamas(model, self.ds, self.batch_size, max_samples=self.max_samples, split_size=self.split_size)
             eval_result = {f"val/{key}": value for key, value in eval_result.items() if self.pattern.match(key)}
             wandb.log(eval_result)
+            if model_training:
+                model.train()
 
 class AWSSaver(TrainerCallback):
     def __init__(self, s3_bucket, s3_prefix, cred_file: str ="~/.aws/credentials"):
@@ -161,7 +165,7 @@ class AWSSaver(TrainerCallback):
     def on_save(self, args, state, logs, model, **kwargs):
         if state.is_local_process_zero and state.is_world_process_zero:
             uploaded_list_file = os.path.join(args.output_dir, "aws_file_list.txt")
-            existing_files = traferse_folder(args.output_dir)
+            existing_files = traverse_folder(args.output_dir)
             if os.path.exists(uploaded_list_file):
                 uploaded_files = load_set(uploaded_list_file)
             else:

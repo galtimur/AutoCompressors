@@ -121,7 +121,7 @@ def wandb_setup(run_id):
     os.environ["WANDB_RESUME"] = "must"
     os.environ["WANDB_RUN_ID"] = run_id
 
-def traferse_folder(folder: str) -> set:
+def traverse_folder(folder: str) -> set:
     file_paths = []
     for root, dirs, files in os.walk(folder):
         for file in files:
