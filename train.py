@@ -59,7 +59,7 @@ def main(args):
     config_path = args.config
     if config_path is None:
         config_path = "configs/config.yaml"
-    model_args, data_args, training_args, merge_config = parse_config(config_path, args.dev)
+    model_args, data_args, training_args, merge_config = parse_config(config_path, args)
     model_args.use_kv = training_args.use_kv
 
     # import pydevd_pycharm
@@ -356,6 +356,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', help='Path to the config file')
+    parser.add_argument('--suffix', help='Any suffix for run name')
     parser.add_argument('--dev', action='store_true', help='Dev mode, adds "test" to the prefix')
     args = parser.parse_args()
     main(args)
