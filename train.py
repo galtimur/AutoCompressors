@@ -44,7 +44,7 @@ def save_base_model(config_path, trainer):
     shutil.copy2(config_path, os.path.join(base_model_folder, "config_base_model.yaml"))
     trainer.save_model(output_dir=base_model_folder)
 
-def main(config_path: str | None):
+def main(args):
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
@@ -56,9 +56,10 @@ def main(config_path: str | None):
     #     model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
     # else:
     #     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    config_path = args.config
     if config_path is None:
         config_path = "configs/config.yaml"
-    model_args, data_args, training_args, merge_config = parse_config(config_path)
+    model_args, data_args, training_args, merge_config = parse_config(config_path, args.dev)
     model_args.use_kv = training_args.use_kv
 
     # import pydevd_pycharm
@@ -355,6 +356,6 @@ def main(config_path: str | None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', help='Path to the config file')
+    parser.add_argument('--dev', action='store_true', help='Dev mode, adds "test" to the prefix')
     args = parser.parse_args()
-    config_path = args.config
-    main(config_path)
+    main(args)
