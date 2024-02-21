@@ -21,8 +21,6 @@ from transformers.trainer_callback import (
     TrainerCallback,
 )
 
-from transformers.integrations import WandbCallback
-
 from transformers.trainer_pt_utils import (
     IterableDatasetShard,
     find_batch_size,
