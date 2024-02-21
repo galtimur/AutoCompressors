@@ -226,7 +226,7 @@ class SubstepTrainer(BaseTrainer):
 
         return total_loss / self.args.training_substeps
 
-    def random_segment_lengths_old(self, input_ids, num_segments):
+    def random_segment_lengths(self, input_ids, num_segments, min_segment_length=5):
         """Returns a list of random segment lengths that sum up to num_segments"""
         max_positions = self.model.config.max_position_embeddings
         if num_segments > 1:
@@ -246,7 +246,7 @@ class SubstepTrainer(BaseTrainer):
             segment_lengths = [input_ids.size(1)]
         return segment_lengths
 
-    def random_segment_lengths(self, input_ids, num_segments, min_segment_length=5):
+    def random_segment_lengths_new(self, input_ids, num_segments, min_segment_length=5):
 
         """Returns a list of random segment lengths that sum up to num_segments
         std: standard deviation of the segments length in terms of ratio of the average segment length
