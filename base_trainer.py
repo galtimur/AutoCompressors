@@ -21,8 +21,6 @@ from transformers.trainer_callback import (
     TrainerCallback,
 )
 
-from transformers.integrations import WandbCallback
-
 from transformers.trainer_pt_utils import (
     IterableDatasetShard,
     find_batch_size,
@@ -49,7 +47,8 @@ from transformers.trainer_pt_utils import get_module_class_from_name
 import time
 
 from transformers.deepspeed import deepspeed_init, is_deepspeed_zero3_enabled
-from peft import PeftModel
+import boto3
+import configparser
 
 if is_torch_tpu_available(check_device=False):
     import torch_xla.core.xla_model as xm # type: ignore
@@ -66,6 +65,7 @@ else:
 
 
 from eval_ppl import evaluate_ppl_red_pajamas
+from utils import traverse_folder, save_set, load_set
 from transformers.trainer import logger
 
 # Name of the files used for checkpointing
@@ -79,18 +79,99 @@ import wandb
 import os
 from datasets import load_dataset
 class EvalCallback(TrainerCallback):
-    def __init__(self):
+    def __init__(self, batch_size = 5, max_samples = 300, split_size = 1536, streaming=False):
+
+        self.batch_size = batch_size
+        self.max_samples = max_samples
         self.pattern = re.compile(r'^chunk_\d+_(loss|ppl)$')
-        self.batch_size = 5
-        self.max_samples = 300
-        self.ds = load_dataset('awettig/RedPajama-combined-15B-6K-llama', split='test')
-        self.split_size = 1536
+        self.ds = load_dataset('awettig/RedPajama-combined-15B-6K-llama', split='test', streaming=streaming)
+        self.split_size = split_size
+        
     def on_save(self, args, state, logs, model, **kwargs):
         # result = eval_result["chunk_0_loss"]
         if state.is_local_process_zero and state.is_world_process_zero:
+            model_training = model.training
+            model.eval()
             eval_result = evaluate_ppl_red_pajamas(model, self.ds, self.batch_size, max_samples=self.max_samples, split_size=self.split_size)
             eval_result = {f"val/{key}": value for key, value in eval_result.items() if self.pattern.match(key)}
             wandb.log(eval_result)
+            if model_training:
+                model.train()
+
+class AWSSaver(TrainerCallback):
+    def __init__(self, s3_bucket, s3_prefix, cred_file: str ="~/.aws/credentials"):
+
+        '''
+        Note, that this approach would not upload any files, preexisted in the list
+        aws_file_list.txt
+        '''
+
+        self.s3_bucket = s3_bucket
+        self.s3_prefix = s3_prefix
+        self.aws_access_key_id, self.aws_secret_access_key = self.get_aws_credentials(cred_file)
+
+    def get_aws_credentials_local(self, cred_file: str ="~/.aws/credentials"):
+        aws_credentials_path = os.path.expanduser(cred_file)
+
+        if os.path.exists(aws_credentials_path):
+            config = configparser.ConfigParser()
+            config.read(aws_credentials_path)
+
+            if 'default' in config:
+                access_key_id = config['default'].get('aws_access_key_id')
+                secret_access_key = config['default'].get('aws_secret_access_key')
+
+                if access_key_id and secret_access_key:
+                    print("Found AWS creds locally")
+                    return access_key_id, secret_access_key
+
+        print(f"Could not find proper file {cred_file}")
+
+        return None, None
+
+    def get_aws_credentials_env(self):
+        access_key_id = os.environ.get('AWS_ACCESS_KEY_ID')
+        secret_access_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
+
+        if access_key_id and secret_access_key:
+            print("Found AWS creds in env variables")
+            return access_key_id, secret_access_key
+        else:
+            print("No AWS env variables found")
+            return None, None
+
+    def get_aws_credentials(self, cred_file: str ="~/.aws/credentials"):
+        access_key_id, secret_access_key = self.get_aws_credentials_env()
+        if not (access_key_id and secret_access_key):
+            access_key_id, secret_access_key = self.get_aws_credentials_local(cred_file)
+        if not (access_key_id and secret_access_key):
+            access_key_id, secret_access_key = None, None
+
+        return access_key_id, secret_access_key
+
+    def upload_folder_to_s3(self, rel_folder, list_of_files):
+        s3 = boto3.client(
+            's3',
+            aws_access_key_id=self.aws_access_key_id,
+            aws_secret_access_key=self.aws_secret_access_key
+        )
+        rel_folder = os.path.dirname(rel_folder)
+        for file in list_of_files:
+            s3_key = os.path.relpath(file, rel_folder)
+            s3_key = os.path.join(self.s3_prefix, s3_key).replace("\\", "/")  # Adjust for Windows paths
+            s3.upload_file(file, self.s3_bucket, s3_key)
+    def on_save(self, args, state, logs, model, **kwargs):
+        if state.is_local_process_zero and state.is_world_process_zero:
+            uploaded_list_file = os.path.join(args.output_dir, "aws_file_list.txt")
+            existing_files = traverse_folder(args.output_dir)
+            if os.path.exists(uploaded_list_file):
+                uploaded_files = load_set(uploaded_list_file)
+            else:
+                uploaded_files = set()
+            files_to_upload = existing_files - uploaded_files
+
+            self.upload_folder_to_s3(args.output_dir, files_to_upload)
+            save_set(existing_files, uploaded_list_file)
 
 class LogCallback(TrainerCallback):
     def __init__(self, *args, **kwargs):

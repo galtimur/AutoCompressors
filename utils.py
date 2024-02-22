@@ -120,3 +120,20 @@ def wandb_setup(run_id):
 
     os.environ["WANDB_RESUME"] = "must"
     os.environ["WANDB_RUN_ID"] = run_id
+
+def traverse_folder(folder: str) -> set:
+    file_paths = []
+    for root, dirs, files in os.walk(folder):
+        for file in files:
+            file_path = os.path.join(root, file)
+            file_paths.append(file_path)
+    return set(file_paths)
+
+def save_set(set_to_save: set, file: str):
+    with open(file, 'w') as f:
+        for item in set_to_save:
+            f.write(item + "\n")
+
+def load_set(file: str):
+    with open(file, 'r') as f:
+        return set([line.strip() for line in f])

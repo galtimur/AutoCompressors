@@ -48,6 +48,8 @@ def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
         model = model_or_path
         device = model.device
 
+    model_training = model.training
+    model.eval()
     # ds = load_dataset('awettig/RedPajama-combined-15B-6K-llama', split='test')
     log_losses = defaultdict(float)
     token_counts = defaultdict(int)
@@ -61,7 +63,7 @@ def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
     dl = DataLoader(ds, batch_size, collate_fn=collate_fn)
     
     samples_seen = 0
-    for samp_num, sample in enumerate(tqdm(dl)):
+    for samp_num, sample in enumerate(dl):
         # inp = ds[0]['input_ids']
         inp_ids = sample['input_ids']
         # inp_ids = torch.tensor(inp, dtype=torch.long, device=device).unsqueeze(0)
@@ -89,5 +91,8 @@ def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
         losses_dict[k + '_ppl'] = np.exp(loss)
         losses_dict[k + '_num_tokens'] = token_counts[k]
         losses_dict['num_samples'] = batch_size * samp_num
-    # print(losses_dict)
+
+    if model_training:
+        model.train()
+
     return losses_dict

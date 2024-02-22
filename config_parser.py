@@ -4,7 +4,7 @@ from args import TrainingArguments, ModelArguments, DataTrainingArguments
 from omegaconf import OmegaConf
 from accelerate import Accelerator
 
-def parse_config(config_path):
+def parse_config(config_path:str, args = None):
     accelerator = Accelerator()
     config = OmegaConf.load(config_path)
     config = OmegaConf.to_container(config, resolve=True)
@@ -17,8 +17,7 @@ def parse_config(config_path):
     config["num_processes"] = accelerator.num_processes
 
     # Compute additional values
-    # TODO pass num_gpus from accelerate config
-    config["total_per_device"] = config["total"] // config["num_processes"]
+    config["total_per_device"] = config["total_batch_size"] // config["num_processes"]
 
     config["config_name"] = config["base_model"]
     config["tokenizer_name"] = config["base_model"]
@@ -29,7 +28,7 @@ def parse_config(config_path):
 
     # Build the run name suffix based on conditions
     run_name_suffix = f"sub{config['training_substeps']}_seg{config['segments_per_substep']}_sum{config['summary_length']}"
-    # _lr{config['learning_rate']}_bsz{config['total']}
+    # _lr{config['learning_rate']}_bsz{config['total_batch_size']}
     # if config["randomize_substeps"]:
     #     run_name_suffix += "_rand"
     # if config["summary_accumulation"]:
@@ -38,7 +37,12 @@ def parse_config(config_path):
     #     run_name_suffix += "_check"
     if config["train_embed_only"]:
         run_name_suffix += "_embed_only"
-    run_name_suffix += "_test"
+    if config["use_kv"]:
+        run_name_suffix += "_use_kv"
+    if args is not None and args.suffix is not None:
+        run_name_suffix += "_"+args.suffix
+    elif args is not None and args.dev:
+        run_name_suffix += "_test"
 
     # run_name=f"{config['base_model']}_config['run_name_suffix']"
     config["run_name"] = f"{config['run_name']}_{run_name_suffix}"
@@ -61,7 +65,6 @@ def parse_config(config_path):
         "out_dir",
         "project",
         "summary_accumulation",
-        "total",
         "total_per_device",
         "train_domains",
     ]

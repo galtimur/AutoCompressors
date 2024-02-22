@@ -3,6 +3,7 @@ import os
 
 from base_trainer import BaseTrainer
 import math
+import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import Dataset
@@ -24,6 +25,11 @@ from transformers.utils import logging
 
 
 logger = logging.get_logger(__name__)
+
+def convert_past_kv_bfloat_and_detach(past_kv):
+    if past_kv is None:
+        return None
+    return tuple([(past_kv_layer[0].detach().bfloat16(), past_kv_layer[1]) for past_kv_layer in past_kv])
 
 
 class DataCollator:
@@ -113,6 +119,7 @@ class SubstepTrainer(BaseTrainer):
 
         total_loss = 0
         softprompt = None
+        past_key_values = None
         metrics = {}
         for substep in range(self.args.training_substeps):
             input_slice, segment_lengths = self.segment_input(inputs, substep)
@@ -122,8 +129,10 @@ class SubstepTrainer(BaseTrainer):
                 out = model(**inputs, segment_lengths=sum(self.args.segment_lengths), use_cache=False)
                 softprompt = None
             else:
-                out = model(**input_slice, softprompt=softprompt, segment_lengths=segment_lengths, use_cache=False, output_softprompt=True)
+                out = model(**inputs, softprompt=softprompt, past_key_values=past_key_values, segment_lengths=segment_lengths,
+                      use_cache=self.args.use_kv, output_softprompt=True)
                 softprompt = out.softprompt
+                past_key_values = out.past_key_values["past_key_values"]
             loss = out.loss
             total_loss += loss
 
@@ -154,6 +163,7 @@ class SubstepTrainer(BaseTrainer):
         model: nn.Module,
         inputs: Dict[str, Union[torch.Tensor, Any]],
         softprompt: Optional[torch.FloatTensor] = None,
+        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         segment_lengths = None
         ) -> torch.Tensor:
         """Performs a training substep, after which softprompts are detached and gradients are accumulated"""
@@ -161,10 +171,12 @@ class SubstepTrainer(BaseTrainer):
         model.train()
         inputs = self._prepare_inputs(inputs)
         with self.compute_loss_context_manager():
-            out = model(**inputs, softprompt=softprompt, segment_lengths=segment_lengths, use_cache=False, output_softprompt=True)
+            out = model(**inputs, softprompt=softprompt, past_key_values=past_key_values, segment_lengths=segment_lengths, use_cache=self.args.use_kv, output_softprompt=True)
             loss = out.loss
             # TODO fix it properly not to move bf16-fp32-bf16 every time
             softprompt = out.softprompt.detach().bfloat16()
+            past_key_values = convert_past_kv_bfloat_and_detach(out.past_key_values["past_key_values"])
+        # TODO check that we pass n_gpu properly.
         if self.args.n_gpu > 1:
             loss = loss.mean()  # mean() to average on multi-gpu parallel training
 
@@ -180,7 +192,7 @@ class SubstepTrainer(BaseTrainer):
         else:
             loss.backward() # TODO rewrite using accelerate
 
-        return loss.detach(), softprompt
+        return loss.detach(), softprompt, past_key_values
 
     def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> torch.Tensor:
         """One training step consists of many training_substeps.
@@ -189,10 +201,11 @@ class SubstepTrainer(BaseTrainer):
         although substeps also implicitly accumulated gradient."""
 
         total_loss = 0
-        softprompt=None
+        softprompt = None
+        past_key_values = None
         for substep in range(self.args.training_substeps):
             input_slice, segment_lengths = self.segment_input(inputs, substep)
-            loss, softprompt = self.training_substep(model, input_slice, softprompt, segment_lengths)
+            loss, softprompt, past_key_values = self.training_substep(model, input_slice, softprompt, past_key_values, segment_lengths)
             total_loss += loss
             self.loss_log[f"substep_{substep}"] += loss
             self.substep_count+=1
@@ -213,7 +226,7 @@ class SubstepTrainer(BaseTrainer):
 
         return total_loss / self.args.training_substeps
 
-    def random_segment_lengths(self, input_ids, num_segments):
+    def random_segment_lengths(self, input_ids, num_segments, min_segment_length=5):
         """Returns a list of random segment lengths that sum up to num_segments"""
         max_positions = self.model.config.max_position_embeddings
         if num_segments > 1:
@@ -222,6 +235,8 @@ class SubstepTrainer(BaseTrainer):
             total_variable_length = input_ids.size(1) - min_segment_length * num_segments
             if num_segments - 1 > total_variable_length:
                 raise ValueError(f"The specified number of segments_per_substep cannot cover the entire input sequence.")
+            # This is brain fucking. More understadable is randint:
+            # breakpoints = torch.randint(total_variable_length, size = num_segments - 1)
             breakpoints = torch.multinomial(torch.ones(total_variable_length), num_segments - 1)
             segment_lengths = torch.diff(breakpoints.sort(-1).values,
                                         prepend=torch.tensor([0]),
@@ -230,6 +245,33 @@ class SubstepTrainer(BaseTrainer):
         else:
             segment_lengths = [input_ids.size(1)]
         return segment_lengths
+
+    def random_segment_lengths_new(self, input_ids, num_segments, min_segment_length=5):
+
+        """Returns a list of random segment lengths that sum up to num_segments
+        std: standard deviation of the segments length in terms of ratio of the average segment length
+        """
+        std = self.args.randomize_std
+        if num_segments > 1:
+
+            total_variable_length = input_ids.size(1) - min_segment_length * num_segments
+            if num_segments - 1 > total_variable_length:
+                raise ValueError(f"The specified number of segments_per_substep cannot cover the entire input sequence.")
+
+            av_size = total_variable_length/num_segments
+            window = av_size*std
+
+            # segment_lengths = np.random.normal(av_size, std, num_segments)
+            segment_lengths = np.random.uniform(av_size - window, av_size + window, num_segments)
+            excess = (sum(segment_lengths) - total_variable_length) / num_segments
+            segment_lengths = np.round(segment_lengths - excess).astype(int)
+            excess = sum(segment_lengths) - total_variable_length
+            segment_lengths[-1] -= excess
+            segment_lengths = (segment_lengths + min_segment_length).tolist()
+        else:
+            segment_lengths = [input_ids.size(1)]
+        return segment_lengths
+
 
     def segment_input(self, inputs, substep):
         """Returns the sliced inputs and the random segment lengths when randomize_substeps=True"""
