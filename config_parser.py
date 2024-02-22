@@ -4,7 +4,7 @@ from args import TrainingArguments, ModelArguments, DataTrainingArguments
 from omegaconf import OmegaConf
 from accelerate import Accelerator
 
-def parse_config(config_path:str, args):
+def parse_config(config_path:str, args = None):
     accelerator = Accelerator()
     config = OmegaConf.load(config_path)
     config = OmegaConf.to_container(config, resolve=True)
@@ -39,9 +39,9 @@ def parse_config(config_path:str, args):
         run_name_suffix += "_embed_only"
     if config["use_kv"]:
         run_name_suffix += "_use_kv"
-    if args.suffix is not None:
+    if args is not None and args.suffix is not None:
         run_name_suffix += "_"+args.suffix
-    elif args.dev:
+    elif args is not None and args.dev:
         run_name_suffix += "_test"
 
     # run_name=f"{config['base_model']}_config['run_name_suffix']"

@@ -102,7 +102,11 @@ def main(args):
     if training_args.do_train:
         if "train" not in lm_datasets:
             raise ValueError("--do_train requires a train dataset")
-        train_dataset = lm_datasets["train"]
+        if data_args.streaming_data:
+            # Think about buffer size. Is it good?
+            train_dataset = lm_datasets["train"].shuffle(buffer_size=10_000, seed=42)
+        else:
+            train_dataset = lm_datasets["train"].shuffle(seed=42)
         if data_args.streaming_data:
             training_args.max_steps = dataset_length//training_args.total_batch_size
         # else:
