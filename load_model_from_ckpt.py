@@ -88,7 +88,6 @@ def load_model_from_ckpt(checkpoint_path: str | Path,
         main_folder = Path(base_model_dir)
 
     config, merged_config = load_flat_config(main_folder / "config_base_model.yaml")
-    print(merged_config)
 
     if merged_config["lora"]:
         print(checkpoint_path)
@@ -108,4 +107,5 @@ if __name__ == '__main__':
     # checkpoint_path = "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_embed_only_test/checkpoint-9900"
     ckpt_path = "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50/checkpoint-2250"
     model, tokenizer, run_config = load_model_from_ckpt(ckpt_path)
+    print(1)
     pass

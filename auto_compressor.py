@@ -66,6 +66,9 @@ class AutoCompressorMixin:
         # To allow backwards compatibility
         if hasattr(config, 'use_kv'):
             self.summary_config.use_kv = config.use_kv
+            self.use_kv = config.use_kv
+        else:
+            self.use_kv = False
 
         if config.summary_length > 0:
             self.embed_summary = nn.Embedding(config.summary_length, self.get_input_embeddings().embedding_dim)
@@ -199,7 +202,7 @@ class AutoCompressorMixin:
 
         # If no past_key_values are given, or we use past key-values in architecture,
         # we will process the sequence in multiple segments
-        if past_key_values is None or self.summary_config.use_kv:
+        if past_key_values is None or self.use_kv:
             segment_lengths = segment_lengths if segment_lengths is not None else input_ids.size(1)
 
             if attention_mask is None:
@@ -237,7 +240,7 @@ class AutoCompressorMixin:
         output_hidden_states_list = []
 
         # If we use keys-values, we ommit softprompts in model input
-        if softprompt is None or self.config.use_kv:
+        if softprompt is None or self.use_kv:
             softprompt = inputs_embeds[:,:0,:]
 
         for step, summary_token_embeds in enumerate(summary_token_embeds_list):
@@ -264,12 +267,12 @@ class AutoCompressorMixin:
             output_attentions_list.append(outputs.attentions)
             output_hidden_states_list.append(outputs.hidden_states)
 
-            if not self.config.use_kv:
+            if not self.use_kv:
                 # No past key values after first step
                 past_key_values = None
                 past_key_values_softprompt_length = 0
 
-        if not self.config.use_kv:
+        if not self.use_kv:
         # Output past values of last segment
             past_key_values = outputs.past_key_values
 

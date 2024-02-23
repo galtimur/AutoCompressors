@@ -38,6 +38,7 @@ def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
                              batch_size: int,
                              max_samples: int = 100,
                              split_size: int = 1536,
+                             disable_tqdm: bool = True
                              ) -> dict[str, float]:
     if isinstance(model_or_path, (str, Path)):
         device = torch.device('cuda')
@@ -63,7 +64,7 @@ def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
     dl = DataLoader(ds, batch_size, collate_fn=collate_fn)
     
     samples_seen = 0
-    for samp_num, sample in enumerate(dl):
+    for samp_num, sample in tqdm(enumerate(dl), disable=disable_tqdm):
         # inp = ds[0]['input_ids']
         inp_ids = sample['input_ids']
         # inp_ids = torch.tensor(inp, dtype=torch.long, device=device).unsqueeze(0)
