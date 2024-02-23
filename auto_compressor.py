@@ -63,7 +63,9 @@ class AutoCompressorMixin:
         assert hasattr(self.config, 'summary_length'), "Compressor requires a summary_length config parameter"
 
         self.summary_config = SummaryConfig()
-        self.summary_config.use_kv = config.use_kv
+        # To allow backwards compatibility
+        if hasattr(config, 'use_kv'):
+            self.summary_config.use_kv = config.use_kv
 
         if config.summary_length > 0:
             self.embed_summary = nn.Embedding(config.summary_length, self.get_input_embeddings().embedding_dim)

@@ -50,7 +50,8 @@ def load_only_embed_model_from_ckpt(checkpoint_path: str, merged_config):
 def load_lora_model_from_ckpt(checkpoint_path: str | Path,
                               base_model_dir: str | Path,
                               merged_config: dict) -> tuple[LlamaAutoCompressorModel, Tokenizer]:
-    checkpoint_path = Path(checkpoint_path)
+    if isinstance(checkpoint_path, str):
+        checkpoint_path = Path(checkpoint_path)
     config = LlamaConfig.from_pretrained(base_model_dir)
 
     model = LlamaAutoCompressorModel.from_pretrained(checkpoint_path, config=config, torch_dtype=config.torch_dtype)
@@ -77,7 +78,9 @@ def load_lora_model_from_ckpt(checkpoint_path: str | Path,
 def load_model_from_ckpt(checkpoint_path: str | Path,
                          base_model_dir: str | Path | None = None
                          ) -> tuple[LlamaAutoCompressorModel, Tokenizer, dict]:
-    checkpoint_path = Path(checkpoint_path)
+
+    if isinstance(checkpoint_path, str):
+        checkpoint_path = Path(checkpoint_path)
     if base_model_dir is None:
         base_folder = checkpoint_path.parent
         main_folder = base_folder / "base_model"
@@ -89,7 +92,7 @@ def load_model_from_ckpt(checkpoint_path: str | Path,
 
     if merged_config["lora"]:
         print(checkpoint_path)
-        model, tokenizer = load_lora_model_from_ckpt(checkpoint_path, base_model_dir, merged_config)
+        model, tokenizer = load_lora_model_from_ckpt(checkpoint_path, main_folder, merged_config)
         # TODO If you want, I can add function that saves the fused model as a checkpoint
         print("Loaded LORA model")
     elif merged_config["train_embed_only"]:
@@ -105,3 +108,4 @@ if __name__ == '__main__':
     # checkpoint_path = "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_embed_only_test/checkpoint-9900"
     ckpt_path = "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50/checkpoint-2250"
     model, tokenizer, run_config = load_model_from_ckpt(ckpt_path)
+    pass
