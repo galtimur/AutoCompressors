@@ -152,6 +152,9 @@ class AutoCompressorMixin:
             outputs.last_hidden_state[:, softprompt_length:total_length - summary_length]
         )
         new_softprompt = outputs.last_hidden_state[:, total_length - summary_length:]
+        # If we use keys-values, we ommit softprompts in model input
+        if self.use_kv:
+            new_softprompt = new_softprompt[:, :0, :]
         outputs.past_key_values = cut_past_kv(outputs.past_key_values, summary_length)
         return outputs, segment_last_hiddens, new_softprompt
 

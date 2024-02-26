@@ -35,7 +35,7 @@ data:
   dataloader_num_workers: 0
   max_train_samples: null
   # cache_dir: "/mnt/data2/galimzyanov/autocompressor/temp/"
-  streaming_data: true
+  streaming_data: false
   upload_aws: true
   s3_bucket: "jettrain-experiments"
   s3_prefix: "Timur.Galimzyanov/autocompressors/checkpoints/"
