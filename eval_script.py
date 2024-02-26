@@ -1,7 +1,9 @@
 import re
 import json
 from pathlib import Path
+
 from datasets import load_dataset
+from fire import Fire
 
 from load_model_from_ckpt import load_model_from_ckpt
 from eval_ppl import evaluate_ppl_red_pajamas
@@ -14,7 +16,7 @@ def save_jsonl(data, file_path):
             f.write("\n")
 
 
-def main():
+def main(shuffle: bool):
     device = "cuda:0"
     batch_size = 5
     max_samples = 300
@@ -27,18 +29,15 @@ def main():
     }
 
     pattern = r"checkpoint-(\d+)"
-    # ckpt_path = Path("/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B-copy/")
     for name, ckpt_path in paths_to_check.items():
-    # ckpt_path = Path("/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_use_kv/")
-    # ckpt_path = Path("/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_embed_only_use_kv_shuffle_old/")
 
-        checkpoints = ckpt_path.glob("checkpoint*")
         checkpoints = sorted(
             ckpt_path.glob("checkpoint*"), key=lambda x: int(x.name.split("-")[-1])
         )
 
         eval_dataset = load_dataset("awettig/RedPajama-combined-15B-6K-llama", split="test")
-        # eval_dataset = eval_dataset.shuffle(seed=42)
+        if shuffle:
+            eval_dataset = eval_dataset.shuffle(seed=42)
         example = next(iter(eval_dataset))
         context_size = len(example["labels"])
 
@@ -82,4 +81,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    Fire(main)
