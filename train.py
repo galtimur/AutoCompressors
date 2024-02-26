@@ -21,7 +21,7 @@ from transformers.utils.versions import require_version
 
 from substep_trainer import SubstepTrainer
 from base_trainer import EvalCallback, AWSSaver
-from utils import get_last_checkpoint_or_last_model, parse_checkpoint_step, load_check_merging, wandb_setup
+from utils import get_last_checkpoint_or_last_model, parse_checkpoint_step, load_check_merging, wandb_setup, get_aws_credentials_local
 from config_parser import parse_config
 import shutil
 from pathlib import Path
@@ -56,6 +56,10 @@ def main(args):
     #     model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
     # else:
     #     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+
+    access_key_id, secret_access_key = get_aws_credentials_local("configs/aws_credentials")
+    os.environ["AWS_ACCESS_KEY_ID"] = access_key_id
+    os.environ["AWS_SECRET_ACCESS_KEY"] = secret_access_key
     config_path = args.config
     if config_path is None:
         config_path = "configs/config.yaml"
