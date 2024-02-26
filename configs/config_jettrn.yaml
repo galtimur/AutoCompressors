@@ -30,7 +30,8 @@ defaults:
     - "YoutubeSubtitles"
 
 data:
-  preprocessed_train_datasets: ["awettig/RedPajama-combined-15B-6K-llama"]
+  preprocessed_train_datasets: ["s3://jettrain-experiments/Timur.Galimzyanov/datasets/RedPajama/test"]
+  preprocessed_validation_datasets: ["s3://jettrain-experiments/Timur.Galimzyanov/datasets/RedPajama/test"]
   preprocessing_num_workers: 0
   dataloader_num_workers: 0
   max_train_samples: null

@@ -79,12 +79,15 @@ import wandb
 import os
 from datasets import load_dataset
 class EvalCallback(TrainerCallback):
-    def __init__(self, batch_size = 5, max_samples = 300, split_size = 1536, streaming=False):
+    def __init__(self, val_dataset, batch_size = 5, max_samples = 300, split_size = 1536, streaming=False):
 
         self.batch_size = batch_size
         self.max_samples = max_samples
         self.pattern = re.compile(r'^chunk_\d+_(loss|ppl)$')
-        self.ds = load_dataset('awettig/RedPajama-combined-15B-6K-llama', split='test', streaming=streaming)
+        if val_dataset is not None:
+            self.ds = val_dataset
+        else:
+            self.ds = load_dataset('awettig/RedPajama-combined-15B-6K-llama', split='test', streaming=streaming)
         self.split_size = split_size
         
     def on_save(self, args, state, logs, model, **kwargs):

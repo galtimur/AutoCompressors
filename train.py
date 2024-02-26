@@ -274,7 +274,7 @@ def main(args):
     tokenizer.padding = True
     
     # TODO add run_id
-    additional_callbacks = [EvalCallback(batch_size = 5, max_samples = 300, split_size = segment_size, streaming=data_args.streaming_data)]
+    additional_callbacks = [EvalCallback(lm_datasets["val"], batch_size = 5, max_samples = 300, split_size = segment_size, streaming=data_args.streaming_data)]
     if data_args.upload_aws:
         additional_callbacks.append(AWSSaver(s3_bucket=data_args.s3_bucket, s3_prefix=data_args.s3_prefix, cred_file=data_args.s3_cred_filepath))
         
