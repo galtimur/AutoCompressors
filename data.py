@@ -216,6 +216,7 @@ def load_preprocessed_datasets(data_args, model_args):
     for train_file in data_args.preprocessed_train_datasets:
         name = os.path.basename(train_file).split(".")[0]
         if train_file.startswith("s3://"):
+            # TODO this can be a problem with multiGPU setup. DO not use it in this case.
             print("Loading TRAIN dataset from AWS")
             data = datasets.load_from_disk(train_file)
         elif os.path.exists(train_file):
