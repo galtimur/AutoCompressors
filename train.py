@@ -65,6 +65,7 @@ def main(args):
         config_path = "configs/config.yaml"
     model_args, data_args, training_args, merge_config = parse_config(config_path, args)
     model_args.use_kv = training_args.use_kv
+    print(merge_config)
 
     # import pydevd_pycharm
     # pydevd_pycharm.settrace('localhost', port=2000, stdoutToServer=True, stderrToServer=True)
