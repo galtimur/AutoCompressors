@@ -215,7 +215,11 @@ def load_preprocessed_datasets(data_args, model_args):
     num_samples_total = 0
     for train_file in data_args.preprocessed_train_datasets:
         name = os.path.basename(train_file).split(".")[0]
-        if os.path.exists(train_file):
+        if train_file.startswith("s3://"):
+            # TODO this can be a problem with multiGPU setup. DO not use it in this case.
+            print("Loading TRAIN dataset from AWS")
+            data = datasets.load_from_disk(train_file)
+        elif os.path.exists(train_file):
             data = datasets.load_from_disk(train_file)
         else:
             data = datasets.load_dataset(
@@ -236,7 +240,10 @@ def load_preprocessed_datasets(data_args, model_args):
 
     for valid_file in data_args.preprocessed_validation_datasets:
         name = os.path.basename(valid_file).split(".")[0]
-        if os.path.exists(train_file):
+        if valid_file.startswith("s3://"):
+            print("Loading VAL dataset from AWS")
+            data = datasets.load_from_disk(valid_file)
+        elif os.path.exists(valid_file):
             data = datasets.load_from_disk(valid_file)
         else:
             data = datasets.load_dataset(
@@ -248,7 +255,7 @@ def load_preprocessed_datasets(data_args, model_args):
             )
         if not data_args.streaming_data:
             num_samples = len(data)
-            print(f"Loaded {train_file} training data, {num_samples} examples")
+            print(f"Loaded {valid_file} training data, {num_samples} examples")
         else:
             num_samples = data.info.splits["test"].num_examples
             print(f"Streaming validation data, {num_samples} examples. Dataset {valid_file}")
@@ -256,10 +263,18 @@ def load_preprocessed_datasets(data_args, model_args):
 
 
     train_data = []
+    val_data = []
     for key in d.keys():
         if key.startswith("train"):
             train_data.append(d[key])
-    d["train"] = datasets.concatenate_datasets(train_data)
+        if key.startswith("validation"):
+            val_data.append(d[key])
+    if len(train_data) > 0:
+        d["train"] = datasets.concatenate_datasets(train_data)
+    if len(val_data) > 0:
+        d["val"] = datasets.concatenate_datasets(val_data)
+    else:
+        d["val"] = None
 
     lm_datasets = datasets.dataset_dict.DatasetDict(d)
     return lm_datasets, num_samples_total

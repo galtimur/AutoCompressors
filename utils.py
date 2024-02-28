@@ -1,10 +1,32 @@
 import os
 import re
 import time
+import configparser
 
 from safetensors import safe_open
 from safetensors.torch import save_file
 import shutil
+
+
+def get_aws_credentials_local(cred_file: str = "~/.aws/credentials"):
+    aws_credentials_path = os.path.expanduser(cred_file)
+
+    if os.path.exists(aws_credentials_path):
+        config = configparser.ConfigParser()
+        config.read(aws_credentials_path)
+
+        if 'default' in config:
+            access_key_id = config['default'].get('aws_access_key_id')
+            secret_access_key = config['default'].get('aws_secret_access_key')
+
+            if access_key_id and secret_access_key:
+                print("Found AWS creds locally")
+                return access_key_id, secret_access_key
+
+    print(f"Could not find proper file {cred_file}")
+
+    return None, None
+
 
 def get_last_checkpoint_or_last_model(folder):
     """modification of get_last_checkpoint from transformer.trainer_utils.

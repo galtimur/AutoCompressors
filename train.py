@@ -21,7 +21,7 @@ from transformers.utils.versions import require_version
 
 from substep_trainer import SubstepTrainer
 from base_trainer import EvalCallback, AWSSaver
-from utils import get_last_checkpoint_or_last_model, parse_checkpoint_step, load_check_merging, wandb_setup
+from utils import get_last_checkpoint_or_last_model, parse_checkpoint_step, load_check_merging, wandb_setup, get_aws_credentials_local
 from config_parser import parse_config
 import shutil
 from pathlib import Path
@@ -56,11 +56,16 @@ def main(args):
     #     model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
     # else:
     #     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+
+    access_key_id, secret_access_key = get_aws_credentials_local("configs/aws_credentials")
+    os.environ["AWS_ACCESS_KEY_ID"] = access_key_id
+    os.environ["AWS_SECRET_ACCESS_KEY"] = secret_access_key
     config_path = args.config
     if config_path is None:
         config_path = "configs/config.yaml"
     model_args, data_args, training_args, merge_config = parse_config(config_path, args)
     model_args.use_kv = training_args.use_kv
+    print(merge_config)
 
     # import pydevd_pycharm
     # pydevd_pycharm.settrace('localhost', port=2000, stdoutToServer=True, stderrToServer=True)
@@ -274,7 +279,7 @@ def main(args):
     tokenizer.padding = True
     
     # TODO add run_id
-    additional_callbacks = [EvalCallback(batch_size = 5, max_samples = 300, split_size = segment_size, streaming=data_args.streaming_data)]
+    additional_callbacks = [EvalCallback(lm_datasets["val"], batch_size = 5, max_samples = 300, split_size = segment_size, streaming=data_args.streaming_data)]
     if data_args.upload_aws:
         additional_callbacks.append(AWSSaver(s3_bucket=data_args.s3_bucket, s3_prefix=data_args.s3_prefix, cred_file=data_args.s3_cred_filepath))
         
