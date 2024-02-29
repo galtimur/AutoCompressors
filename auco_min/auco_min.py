@@ -18,7 +18,7 @@ class AcCausalLMOutputWithPast(CausalLMOutputWithPast):
 PastKVType = tuple[tuple[torch.FloatTensor]]
 
 
-class ACPretrainedModelForCausalLM(LlamaForCausalLM):
+class ACCausalLM(LlamaForCausalLM):
     def __init__(
         self,
         *args,
@@ -35,8 +35,10 @@ class ACPretrainedModelForCausalLM(LlamaForCausalLM):
         self.substeps = substeps
         self.segments_per_substep = segments_per_substep
         self.summary_embeddings = nn.Embedding(num_summary_vectors, emb_dim)
+        self.loss_log = defaultdict(int)
+        self.pad_label = -100
 
-    def split_even(batch, size):
+    def split_even(self, batch, size):
         batch_split = torch.split(batch, size, dim=1)
 
         return batch_split
@@ -97,9 +99,13 @@ class ACPretrainedModelForCausalLM(LlamaForCausalLM):
             return None
         return tuple([(past_kv_layer[0].detach().bfloat16(), past_kv_layer[1].detach().bfloat16()) for past_kv_layer in past_kv])
 
-    def forward_segment(self, split: torch.LongTensor, past_kv, summary_tok_embs):
+    def forward_segment(self, split: torch.LongTensor, past_kv: PastKVType, summary_tok_embs) -> tuple[PastKVType]:
+
+        pad_input = (self.pad_label * torch.ones_like(summary_tok_embs[:, :, 0])).int().to(self.device)
         input_embeds = self.model.embed_tokens(split)
         input_embeds = torch.cat([input_embeds, summary_tok_embs], 1)
+        split = torch.cat([split, pad_input], dim=1)
+
         out = super().forward(
             inputs_embeds=input_embeds,
             labels=split,
@@ -115,6 +121,8 @@ class ACPretrainedModelForCausalLM(LlamaForCausalLM):
             past_kv, new_past_kv, seq_first_and_merged_kv=False
         )
 
+        return out, past_kv
+
     def forward(
         self, input_ids: torch.LongTensor = None, *args, **kwargs
     ) -> tuple | AcCausalLMOutputWithPast:
@@ -122,18 +130,26 @@ class ACPretrainedModelForCausalLM(LlamaForCausalLM):
         input_ids_splitted = self.split_even(input_ids, 1024)
         assert (
             len(input_ids_splitted) == self.substeps * self.segments_per_substep
-        ), "Number of substeps*segments_per_substep should equal to number of segments in the splitted ids"
+        ), f"Number of substeps*segments_per_substep should equal to number of segments in the splitted ids. len(input_ids_splitted) = {len(input_ids_splitted)}, substeps = {self.substeps}, segments_per_substep = {self.segments_per_substep}"
+
         summary_tok_embs = self.summary_embeddings.weight.unsqueeze(0).repeat(
             batch_size, 1, 1
         )
 
         past_kv = None
+        total_loss = 0
+        num_segments = len(input_ids_splitted)
         for split_num, split in enumerate(input_ids_splitted):
-
-            if (split_num+1)%self.segments_per_substep:
-                # softprompt = out.softprompt.detach().bfloat16()
-                past_key_values = self.convert_past_kv_bfloat_and_detach(past_kv)
+            out, past_kv = self.forward_segment(split, past_kv, summary_tok_embs)
+            loss_segment = out.loss.item()
+            total_loss += loss_segment
+            if (split_num+1)%self.segments_per_substep==0:
+                past_kv = self.convert_past_kv_bfloat_and_detach(past_kv)
                 loss = out.loss
-                loss = loss / self.args.gradient_accumulation_steps
+                # TODO may be here we need not use accelerate.
+                loss.backward()
 
-        return out
+            self.loss_log[f"segment_{split_num}"] += loss_segment
+        self.loss_log["loss"] = total_loss/num_segments
+
+        return out, self.loss_log

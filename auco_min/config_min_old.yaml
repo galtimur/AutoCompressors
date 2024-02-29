@@ -1,0 +1,15 @@
+batch_size: 1
+batch_accum: 8
+learning_rate: 1e-4
+model_name: "princeton-nlp/Sheared-LLaMA-1.3B"
+substeps: 3
+segments_per_substep: 2
+num_summary_vectors: 50
+
+lora:
+  lora: true
+  lora_r: 16
+  lora_alpha: 16
+  lora_dropout: 0.05
+  lora_target_modules: ["q_proj", "v_proj", "o_proj", "k_proj"]
+  lora_modules_to_save: ["embed_summary"]
