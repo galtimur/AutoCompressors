@@ -24,7 +24,8 @@ def setup_training(config_path, args):
             segments_per_substep=training_args.segments_per_substep,
             num_summary_vectors=training_args.summary_length,
             split_size=split_size,
-            torch_dtype=torch.bfloat16
+            torch_dtype=torch.bfloat16,
+            attn_implementation="flash_attention_2",
         )
         .to(device)
     )
@@ -54,13 +55,13 @@ def setup_training(config_path, args):
     if training_args.train_embed_only:
         num_trainable_parameters = 0
         for name, param in model.named_parameters():
-            if 'embed_summary' in name.lower():
+            if 'summary_embeddings' in name.lower():
                 param.requires_grad = True
                 num_trainable_parameters += param.numel()
             else:
                 param.requires_grad = False
         print(f"Number of trainable parameters = {num_trainable_parameters}")
-        optimizer = torch.optim.AdamW(model.embed_summary.parameters(), lr=training_args.learning_rate)
+        optimizer = torch.optim.AdamW(model.summary_embeddings.parameters(), lr=training_args.learning_rate)
     else:
         optimizer = AdamW(model.parameters(), lr=training_args.learning_rate)
 

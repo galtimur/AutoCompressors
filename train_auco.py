@@ -11,8 +11,7 @@ from datasets import load_dataset
 
 
 eval_batch_size = 5
-max_samples = 30
-pattern = re.compile(r"^chunk_\d+_(loss)$")
+max_samples = 300
 eval_ds = load_dataset("awettig/RedPajama-combined-15B-6K-llama", split="test")
 split_size = 1024
 
@@ -47,8 +46,8 @@ def main(args):
         log = out.loss_log
         for key, value in log.items():
             av_loss[key] += value / batch_accum
-        if i > 80:
-            break
+        # if i > 80:
+        #     break
         if (i + 1) % batch_accum == 0:
             optimizer.step()
             # print(i + 1, av_loss["loss"])

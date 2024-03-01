@@ -2,7 +2,7 @@ defaults:
   do_train: true
   do_eval: false
   base_model: "princeton-nlp/Sheared-LLaMA-1.3B"
-  total_batch_size: 10 # total batch size # TODO rename later
+  total_batch_size: 32 # total batch size # TODO rename later
   per_device_eval_batch_size: 2
   per_device_train_batch_size: 2
   warmup_steps: 5000
@@ -49,8 +49,8 @@ output:
 
 training:
   summary_accumulation: true
-  lora: true
-  train_embed_only: false
+  lora: false
+  train_embed_only: true
   use_kv: true
   segments_per_substep: 2
   training_substeps: 3
