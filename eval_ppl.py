@@ -38,7 +38,8 @@ def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
                              batch_size: int,
                              max_samples: int = 100,
                              split_size: int = 1536,
-                             disable_tqdm: bool = True
+                             disable_tqdm: bool = True,
+                             simple: bool = False,
                              ) -> dict[str, float]:
     if isinstance(model_or_path, (str, Path)):
         device = torch.device('cuda')
@@ -64,24 +65,31 @@ def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
     dl = DataLoader(ds, batch_size, collate_fn=collate_fn)
     
     samples_seen = 0
+    av_loss = defaultdict(float)
     for samp_num, sample in tqdm(enumerate(dl), disable=disable_tqdm):
         # inp = ds[0]['input_ids']
         inp_ids = sample['input_ids']
+        bs, seq_len = inp_ids.shape
         # inp_ids = torch.tensor(inp, dtype=torch.long, device=device).unsqueeze(0)
         split_sizes = equal_size_splits(inp_ids, split_size)
         with torch.no_grad():
-            logits = model(inp_ids, segment_lengths=split_sizes).logits
-            bs, seq_len = inp_ids.shape
-            logits = logits[:, :-1].reshape(-1, logits.shape[2])
-            targets = inp_ids[:, 1:].reshape(-1)
-            xent = torch.nn.functional.cross_entropy(logits, targets, reduction='none')
-            xent = xent.reshape(bs, seq_len - 1)
-            chunk_token_loss_list = torch.split(xent, split_size, dim=1)
-            for n, token_loss_tens in enumerate(chunk_token_loss_list):
-                log_losses[f'chunk_{n}'] += token_loss_tens.sum().item()
-                token_counts[f'chunk_{n}'] += token_loss_tens.numel()
-            log_losses['total'] += xent.sum().item()
-            token_counts['total'] += xent.numel()
+            if not simple:
+                logits = model(inp_ids, segment_lengths=split_sizes).logits
+                logits = logits[:, :-1].reshape(-1, logits.shape[2])
+                targets = inp_ids[:, 1:].reshape(-1)
+                xent = torch.nn.functional.cross_entropy(logits, targets, reduction='none')
+                xent = xent.reshape(bs, seq_len - 1)
+                chunk_token_loss_list = torch.split(xent, split_size, dim=1)
+                for n, token_loss_tens in enumerate(chunk_token_loss_list):
+                    log_losses[f'chunk_{n}'] += token_loss_tens.sum().item()
+                    token_counts[f'chunk_{n}'] += token_loss_tens.numel()
+                log_losses['total'] += xent.sum().item()
+                token_counts['total'] += xent.numel()
+            else:
+                out = model(inp_ids)
+                log = out.loss_log
+                for key, value in log.items():
+                    av_loss["val/"+key] += value
         samples_seen += bs
         if 0 < max_samples < samples_seen:
             break
@@ -95,5 +103,10 @@ def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
 
     if model_training:
         model.train()
+
+    if simple:
+        for key, value in av_loss.items():
+            av_loss[key] = av_loss[key]/samp_num
+        losses_dict = av_loss
 
     return losses_dict

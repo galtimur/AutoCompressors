@@ -51,7 +51,7 @@ training:
   summary_accumulation: true
   lora: true
   train_embed_only: false
-  use_kv: false
+  use_kv: true
   segments_per_substep: 2
   training_substeps: 3
   summary_length: 50

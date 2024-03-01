@@ -15,6 +15,7 @@ class AcCausalLMOutputWithPast(CausalLMOutputWithPast):
     summary_vectors: list[Tensor] | None = None
 
 
+
 PastKVType = tuple[tuple[torch.FloatTensor]]
 
 
@@ -35,8 +36,8 @@ class ACCausalLM(LlamaForCausalLM):
         self.substeps = substeps
         self.segments_per_substep = segments_per_substep
         self.summary_embeddings = nn.Embedding(num_summary_vectors, emb_dim)
-        self.loss_log = defaultdict(int)
         self.pad_label = -100
+        self.loss_log = defaultdict(int)
 
     def split_even(self, batch, size):
         batch_split = torch.split(batch, size, dim=1)
@@ -142,14 +143,16 @@ class ACCausalLM(LlamaForCausalLM):
         for split_num, split in enumerate(input_ids_splitted):
             out, past_kv = self.forward_segment(split, past_kv, summary_tok_embs)
             loss_segment = out.loss.item()
-            total_loss += loss_segment
+            total_loss += loss_segment/num_segments
             if (split_num+1)%self.segments_per_substep==0:
                 past_kv = self.convert_past_kv_bfloat_and_detach(past_kv)
                 loss = out.loss
                 # TODO may be here we need not use accelerate.
-                loss.backward()
+                if self.training:
+                    loss.backward()
 
-            self.loss_log[f"segment_{split_num}"] += loss_segment
-        self.loss_log["loss"] = total_loss/num_segments
+            self.loss_log[f"segment_{split_num}"] = loss_segment
+        self.loss_log["loss"] = total_loss
+        out.loss_log = self.loss_log
 
-        return out, self.loss_log
+        return out
