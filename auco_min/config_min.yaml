@@ -49,8 +49,8 @@ output:
 
 training:
   summary_accumulation: true
-  lora: false
-  train_embed_only: true
+  lora: true
+  train_embed_only: false
   use_kv: true
   segments_per_substep: 2
   training_substeps: 3
@@ -70,7 +70,7 @@ lora:
   lora_alpha: 16
   lora_dropout: 0.05
   lora_target_modules: ["q_proj", "v_proj", "o_proj", "k_proj"]
-  lora_modules_to_save: ["embed_summary"]
+  lora_modules_to_save: ["summary_embeddings"]
 
 wandb:
   report_to: "wandb"

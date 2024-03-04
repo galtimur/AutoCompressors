@@ -26,8 +26,9 @@ def setup_training(config_path, args):
             split_size=split_size,
             torch_dtype=torch.bfloat16,
             attn_implementation="flash_attention_2",
+            device_map=device
         )
-        .to(device)
+        .to(device)# This is excessive
     )
 
     total_params = sum(p.numel() for p in model.parameters()) / 1e6

@@ -50,6 +50,7 @@ def main(args):
         #     break
         if (i + 1) % batch_accum == 0:
             optimizer.step()
+            optimizer.zero_grad()
             # print(i + 1, av_loss["loss"])
 
             wandb.log(av_loss)
