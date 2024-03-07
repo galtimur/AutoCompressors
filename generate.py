@@ -55,7 +55,7 @@ def main(checkpoint_path, prompt_filepath):
     with open(prompt_filepath, "r") as f:
         prompt = f.read()
     # prompt = 400 * "In a hole in the ground there lived a"
-    # prompt = 400 * "a=0 \n for i in range(10):"
+    # prompt = 400 * "a=0 \n for i in range(10):\n    a+=1 \n"
 
     input_ids = tokenizer.encode(prompt, return_tensors="pt").to(device)
     input_ids = input_ids[:,:1838]
@@ -90,6 +90,6 @@ if __name__ == "__main__":
         # "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_embed_only/checkpoint-46200"
         "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_new_split/checkpoint-17100"
     )  # 46200
-    prompt_filepath = "out/passage_for_gen_code.txt"
+    prompt_filepath = "out/passage_for_gen.txt"
 
     main(checkpoint_path, prompt_filepath)
