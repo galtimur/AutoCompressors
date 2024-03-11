@@ -10,7 +10,7 @@ from huggingface_hub.utils import HFValidationError
 from omegaconf import OmegaConf
 from peft import PeftModel, get_peft_model, LoraConfig
 from tokenizers import Tokenizer
-from transformers import LlamaConfig, AutoTokenizer
+from transformers import LlamaConfig, AutoConfig, AutoTokenizer
 
 from auto_compressor import LlamaAutoCompressorModel
 from utils import check_proc_flags
@@ -115,7 +115,21 @@ def load_lora_model_from_ckpt(checkpoint_path: str | Path,
                               merged_config: dict) -> tuple[LlamaAutoCompressorModel, Tokenizer]:
     if isinstance(checkpoint_path, str):
         checkpoint_path = Path(checkpoint_path)
-    config = LlamaConfig.from_pretrained(base_model_dir)
+    if "llama" in merged_config['base_model'].lower():
+        config = LlamaConfig.from_pretrained(base_model_dir)
+        tokenizer = AutoTokenizer.from_pretrained(checkpoint_path, use_fast=merged_config["use_fast_tokenizer"])
+    elif os.path.exists(base_model_dir / "config.json"):
+        config = AutoConfig.from_pretrained(base_model_dir)
+        tokenizer = AutoTokenizer.from_pretrained(checkpoint_path, use_fast=merged_config["use_fast_tokenizer"])
+    else:
+        config = AutoConfig.from_pretrained(merged_config["base_model"])
+        config.summary_length = merged_config["summary_length"]
+        config.accumulate_summary = merged_config["accumulate_summary"]
+        config.segment_gradient_checkpointing = merged_config["segment_gradient_checkpointing"]
+        config.use_kv = merged_config["use_kv"]
+
+        tokenizer = AutoTokenizer.from_pretrained(merged_config["base_model"], use_fast=merged_config["use_fast_tokenizer"])
+        tokenizer.pad_token_id = tokenizer.bos_token_id
 
     model = LlamaAutoCompressorModel.from_pretrained(checkpoint_path, config=config, torch_dtype=config.torch_dtype)
 
@@ -132,8 +146,6 @@ def load_lora_model_from_ckpt(checkpoint_path: str | Path,
         model.load_state_dict(torch.load(checkpoint_path / 'pytorch_model.bin', map_location='cpu'))
 
     model = model.merge_and_unload()
-
-    tokenizer = AutoTokenizer.from_pretrained(checkpoint_path, use_fast=merged_config["use_fast_tokenizer"])
 
     return model, tokenizer
 
