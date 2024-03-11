@@ -10,7 +10,7 @@ from auto_compressor import LlamaAutoCompressorModel as AutoCompressorModel
 import torch
 from torch.utils.data import DataLoader
 
-from utils import get_run_mudules
+from utils_load_modules import get_run_mudules
 from eval_ppl import evaluate_ppl_red_pajamas
 
 
@@ -87,10 +87,10 @@ def speed_bench(args, config_path, result_file):
         bench_result["segment_size"] = segment_size
         bench_result["segments_per_substep"] = segments_per_substep
         bench_result["training_substeps"] = training_substeps
-        bench_result["tokens forward"] = len(dataset) * context_size
+        bench_result["tokens forward"] = len(train_dataset) * context_size
         bench_result["tokens eval"] = len(val_dataset) * context_size
-        bench_result["tokens generated"] = len(dataset) * tokens_to_generate
-        bench_result["tokens prompt gen"] = len(dataset) * (
+        bench_result["tokens generated"] = len(train_dataset) * tokens_to_generate
+        bench_result["tokens prompt gen"] = len(train_dataset) * (
             context_size - segment_size // 2
         )
 
@@ -128,7 +128,7 @@ def speed_bench(args, config_path, result_file):
         print("------------ performing generation -----------")
         model.eval()
         model.gen_mode = True
-        data_loader = DataLoader(dataset, eval_batch, collate_fn=collate_fn)
+        data_loader = DataLoader(train_dataset, eval_batch, collate_fn=collate_fn)
 
         start_time = time.time()
         for item in tqdm(data_loader):
