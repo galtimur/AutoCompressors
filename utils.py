@@ -1,6 +1,6 @@
 import os
 import re
-import time
+import torch
 import configparser
 
 from safetensors import safe_open
@@ -88,36 +88,13 @@ def check_proc_flags(folder: str, max_proc: int, prefix: str):
 
     return all_files_exist
 
-def load_check_merging(last_checkpoint: str, trainer):
-    process_indx = trainer.accelerator.state.process_index
-    max_proc = trainer.accelerator.num_processes
-    base_folder = os.path.dirname(last_checkpoint)
-    temp_folder = os.path.join(base_folder, "checkpoint_merge_temp")
-    flag_filename = ".merging_done_flag"
-    flag_file = os.path.join(temp_folder, flag_filename)
-    flag_prefix = ".flag_proc"
-    # TODO add node index too
-    flag_file_process = os.path.join(temp_folder, f"{flag_prefix}_{process_indx}")
-    if trainer.state.is_local_process_zero and trainer.state.is_world_process_zero:
-        main_model_folder = os.path.join(base_folder, "base_model")
-        config_filename = "config_base_model.yaml"
-        merge_ckpts(main_model_folder, last_checkpoint, temp_folder, flag_filename, config_filename)
+def get_torch_device(gpu_num: int | None) -> torch.device:
+    if gpu_num is None:
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     else:
-        exist_merge = os.path.exists(flag_file)
-        while not exist_merge:
-            exist_merge = os.path.exists(flag_file)
-            time.sleep(0.2)
-
-    trainer._load_from_checkpoint(temp_folder)
-    with open(flag_file_process, 'w') as f:
-        pass
-
-    wait = not check_proc_flags(temp_folder, max_proc, flag_prefix)
-    while wait:
-        wait = not check_proc_flags(temp_folder, max_proc, flag_prefix)
-        time.sleep(0.2)
-    if trainer.state.is_local_process_zero and trainer.state.is_world_process_zero:
-        shutil.rmtree(temp_folder)
+        print(gpu_num)
+        device = torch.device(f'cuda:{gpu_num}')
+    return device
 
 def wandb_setup(run_id):
 

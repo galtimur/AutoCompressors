@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 import shutil
+import time
 
 from safetensors import safe_open
 from safetensors.torch import save_file
@@ -12,6 +13,7 @@ from tokenizers import Tokenizer
 from transformers import LlamaConfig, AutoTokenizer
 
 from auto_compressor import LlamaAutoCompressorModel
+from utils import check_proc_flags
 
 
 # TODO check that llama is the model
@@ -42,6 +44,38 @@ def merge_ckpts(main_folder, part_folder, temp_folder, flag_filename=".merging_d
         pass
 
     return flag_file
+
+def load_check_merging(last_checkpoint: str, trainer):
+    process_indx = trainer.accelerator.state.process_index
+    max_proc = trainer.accelerator.num_processes
+    base_folder = os.path.dirname(last_checkpoint)
+    temp_folder = os.path.join(base_folder, "checkpoint_merge_temp")
+    flag_filename = ".merging_done_flag"
+    flag_file = os.path.join(temp_folder, flag_filename)
+    flag_prefix = ".flag_proc"
+    # TODO add node index too
+    flag_file_process = os.path.join(temp_folder, f"{flag_prefix}_{process_indx}")
+    if trainer.state.is_local_process_zero and trainer.state.is_world_process_zero:
+        main_model_folder = os.path.join(base_folder, "base_model")
+        config_filename = "config_base_model.yaml"
+        merge_ckpts(main_model_folder, last_checkpoint, temp_folder, flag_filename, config_filename)
+    else:
+        exist_merge = os.path.exists(flag_file)
+        while not exist_merge:
+            exist_merge = os.path.exists(flag_file)
+            time.sleep(0.2)
+
+    trainer._load_from_checkpoint(temp_folder)
+    with open(flag_file_process, 'w') as f:
+        pass
+
+    wait = not check_proc_flags(temp_folder, max_proc, flag_prefix)
+    while wait:
+        wait = not check_proc_flags(temp_folder, max_proc, flag_prefix)
+        time.sleep(0.2)
+    if trainer.state.is_local_process_zero and trainer.state.is_world_process_zero:
+        shutil.rmtree(temp_folder)
+
 
 def load_flat_config(config_path):
 
