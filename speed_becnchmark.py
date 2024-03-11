@@ -1,5 +1,4 @@
 import argparse
-import gc
 import time
 import json
 import gc
@@ -8,11 +7,10 @@ from tqdm import tqdm
 
 from auto_compressor import LlamaAutoCompressorModel as AutoCompressorModel
 
-import os
 import torch
 from torch.utils.data import DataLoader
 
-from speed_becnchmark_utils import get_run_mudules
+from utils import get_run_mudules
 from eval_ppl import evaluate_ppl_red_pajamas
 
 
@@ -24,7 +22,6 @@ def collate_fn(batch):
 
 
 def speed_bench(args, config_path, result_file):
-
     bench_config = OmegaConf.load("configs/benchmark_params_backup.yaml")
     bench_config = OmegaConf.to_container(bench_config, resolve=True)
 
@@ -41,12 +38,13 @@ def speed_bench(args, config_path, result_file):
         training_substeps,
         train_bz,
         eval_bz,
-    ) in zip(segments_per_substep_lst, training_substeps_lst, train_bz_lst, eval_bz_lst):
-
-        segments_number = segments_per_substep*training_substeps
-        summary_length = 6000//(segments_number*compress_rate)
-        if segments_number==1:
-            summary_length=0
+    ) in zip(
+        segments_per_substep_lst, training_substeps_lst, train_bz_lst, eval_bz_lst
+    ):
+        segments_number = segments_per_substep * training_substeps
+        summary_length = 6000 // (segments_number * compress_rate)
+        if segments_number == 1:
+            summary_length = 0
 
         # if segments_number < 10:
         #     continue
@@ -61,8 +59,16 @@ def speed_bench(args, config_path, result_file):
         }
         # if training_substeps != 8:
         #     continue
-        trainer, model_kwargs, dataset, val_dataset, merge_config = get_run_mudules(
+        ModelTrainingModules = get_run_mudules(
             args, config_path, bench_parameters, max_val_samples
+        )
+
+        trainer, model_kwargs, train_dataset, val_dataset, merge_config = (
+            ModelTrainingModules.trainer,
+            ModelTrainingModules.model_kwargs,
+            ModelTrainingModules.train_dataset,
+            ModelTrainingModules.val_dataset,
+            ModelTrainingModules.merge_config,
         )
 
         print(bench_parameters)
@@ -93,7 +99,9 @@ def speed_bench(args, config_path, result_file):
             print("-------------- performing train -------------")
             start_time = time.time()
             trainer.train()
-            bench_result["train speed tok/s"] = bench_result["tokens forward"]/(time.time() - start_time)
+            bench_result["train speed tok/s"] = bench_result["tokens forward"] / (
+                time.time() - start_time
+            )
 
         device = trainer.model.device
         del trainer
@@ -113,7 +121,9 @@ def speed_bench(args, config_path, result_file):
             split_size=segment_size,
             disable_tqdm=False,
         )
-        bench_result["eval speed tok/s"] = bench_result["tokens eval"]/(time.time() - start_time)
+        bench_result["eval speed tok/s"] = bench_result["tokens eval"] / (
+            time.time() - start_time
+        )
 
         print("------------ performing generation -----------")
         model.eval()
@@ -122,7 +132,6 @@ def speed_bench(args, config_path, result_file):
 
         start_time = time.time()
         for item in tqdm(data_loader):
-
             input_ids = item["input_ids"][:, : -segment_size // 2]
 
             output_ids = model.generate(
@@ -132,7 +141,9 @@ def speed_bench(args, config_path, result_file):
                 do_sample=False,
             )
             print(output_ids.size(1) - input_ids.size(1))
-        bench_result["generation speed tok/s"] = bench_result["tokens generated"]/(time.time() - start_time)
+        bench_result["generation speed tok/s"] = bench_result["tokens generated"] / (
+            time.time() - start_time
+        )
 
         with open(result_file, "a") as jsonl_file:
             jsonl_file.write(json.dumps(bench_result) + "\n")

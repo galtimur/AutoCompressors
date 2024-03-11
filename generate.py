@@ -69,7 +69,7 @@ def main(checkpoint_path, prompt_filepath):
                                 max_length=2000,
                                 segment_lengths=1024,
                                 do_sample=False)
-    generated_text = tokenizer.decode(output_ids[0][len_input:], skip_special_tokens=True)
+    generated_text = tokenizer.decode(output_ids[0, len_input:], skip_special_tokens=True)
     analyse_logits(model, output_ids, len_input)
 
     print(generated_text)
