@@ -4,7 +4,7 @@ from args import TrainingArguments, ModelArguments, DataTrainingArguments
 from omegaconf import OmegaConf
 from accelerate import Accelerator
 
-def parse_config(config_path:str, args = None):
+def parse_config(config_path:str, args = None, override_dict=None):
     accelerator = Accelerator()
     config = OmegaConf.load(config_path)
     config = OmegaConf.to_container(config, resolve=True)
@@ -13,6 +13,10 @@ def parse_config(config_path:str, args = None):
     for d in list(config.values()):
         merged_dict.update(d)
     config = merged_dict
+
+    if override_dict is not None:
+        config.update(override_dict)
+
     # TODO check, how it would behave if number of node > 1. Does it counts all GPUs or only on single node?
     config["num_processes"] = accelerator.num_processes
 
