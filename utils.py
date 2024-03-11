@@ -3,10 +3,6 @@ import re
 import torch
 import configparser
 
-from safetensors import safe_open
-from safetensors.torch import save_file
-import shutil
-
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 

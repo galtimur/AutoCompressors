@@ -61,6 +61,7 @@ class StopOnNewLine(StoppingCriteria):
 
 def eval_on_lcc(
     checkpoint_path: str | Path,
+    ds_test: str | None,
     model_name: str,
     results_directory: str | Path,
     results_filename: str | Path,
@@ -68,14 +69,15 @@ def eval_on_lcc(
     gpu_num: int | None = None,
     limit: int | None = None,
 ) -> dict:
+
     device = "cuda:0"
     model, tokenizer, run_config = load_model_from_ckpt(checkpoint_path)
     model.eval()
     model.to(device)
-    ds_test = LcaPythonCompletionDataset()
     device = get_torch_device(gpu_num)
     stopping_criteria = StoppingCriteriaList([StopOnNewLine(tokenizer)])
-
+    if ds_test is None:
+        ds_test = LcaPythonCompletionDataset()
     max_comp = 128
     max_len_model = 6 * 1024  # model.config.max_position_embeddings
     max_len_ctx = max_len_model - max_comp
@@ -84,7 +86,7 @@ def eval_on_lcc(
     preds = []
 
     num_samples = len(ds_test) if limit is None else limit
-    ds_test = ds_test[:limit]
+    ds_test = ds_test[:num_samples]
 
     for sample in tqdm(ds_test):
         input_ids = tokenizer.encode(sample["context"], return_tensors="pt")
@@ -114,17 +116,28 @@ def eval_on_lcc(
         dump_results(results, results_directory, results_filename)
     return results
 
+def eval_models_on_lcc(ckpt_map_path: str | Path, results_path: str | Path):
+    with open(ckpt_map_path, 'r') as f:
+        ckpt_name_map = json.load(f)
+    dataset = LcaPythonCompletionDataset()
+    for model_name, ckpt_path in ckpt_name_map.items():
+        print(f"Running {model_name}")
+        eval_result = eval_on_lcc(
+            ckpt_path,
+            dataset,
+            model_name=model_name,
+            results_directory="out",
+            results_filename="eval_lca_cc.json",
+            do_dump_results=False,
+            limit=5,
+        )
+        with open(results_path, "a") as jsonl_file:
+            jsonl_file.write(json.dumps(eval_result) + "\n")
+
 
 if __name__ == "__main__":
     # ckpt_path = "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_new_split/checkpoint-17100"
-    ckpt_path = "/mnt/data2/arkhipov/experiments/autocompressors/deepseek-1.3B_sub3_seg2_sum50_code_base/checkpoint-10000"
-    # with open('path_to_file/person.json', 'r') as f:
-    #     data = json.load(f)
-    eval_on_lcc(
-        ckpt_path,
-        model_name="model_name",
-        results_directory="out",
-        results_filename="eval_lca_cc.json",
-        do_dump_results=True,
-        limit=5,
-    )
+    # ckpt_path = "/mnt/data2/arkhipov/experiments/autocompressors/deepseek-1.3B_sub3_seg2_sum50_code_base/checkpoint-10000"
+    ckpt_map_path = 'configs/ckpt_name_map.json'
+    results_path = "out/eval_lca_cc.json"
+    eval_models_on_lcc(ckpt_map_path, results_path)

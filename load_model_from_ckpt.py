@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 import shutil
 import time
+import torch
 
 from safetensors import safe_open
 from safetensors.torch import save_file
@@ -19,16 +20,7 @@ from utils import check_proc_flags
 # TODO check that llama is the model
 # if "llama" in (model_args.model_name_or_path or model_args.config_name).lower():
 
-def merge_ckpts(main_folder, part_folder, temp_folder, flag_filename=".merging_done_flag", config_filename = "config_base_model.yaml"):
-    flag_file = os.path.join(temp_folder, flag_filename)
-    if os.path.exists(temp_folder):
-        shutil.rmtree(temp_folder)
-    shutil.copytree(part_folder, temp_folder)
-    shutil.copy2(os.path.join(main_folder, config_filename), os.path.join(temp_folder, config_filename))
-    file_path_part = os.path.join(part_folder, "model.safetensors")
-    file_path_main = os.path.join(main_folder, "model.safetensors")
-    model_tensor_path = os.path.join(temp_folder, "model.safetensors")
-    os.remove(model_tensor_path)
+def merge_sefetensors(file_path_main, file_path_part, model_tensor_path):
     tensors = {}
     with safe_open(file_path_main, framework="pt") as f:
         metadata = f.metadata()
@@ -38,8 +30,34 @@ def merge_ckpts(main_folder, part_folder, temp_folder, flag_filename=".merging_d
     with safe_open(file_path_part, framework="pt") as f:
         for k in f.keys():
             tensors[k] = f.get_tensor(k)
-
     save_file(tensors, model_tensor_path, metadata)
+
+def merge_pytorch_bin(file_path_main, file_path_part, model_tensor_path):
+    base_model = torch.load(file_path_main)
+    embeddings = torch.load(file_path_part)
+    base_model.update(embeddings)
+    torch.save(base_model, model_tensor_path)
+
+def merge_ckpts(main_folder, part_folder, temp_folder, flag_filename=".merging_done_flag", config_filename = "config_base_model.yaml"):
+    flag_file = os.path.join(temp_folder, flag_filename)
+    if os.path.exists(temp_folder):
+        shutil.rmtree(temp_folder)
+    shutil.copytree(part_folder, temp_folder)
+    shutil.copy2(os.path.join(main_folder, config_filename), os.path.join(temp_folder, config_filename))
+    model_tensor_name = "model.safetensors"
+    file_path_main = os.path.join(main_folder, model_tensor_name)
+    if not os.path.exists(file_path_main):
+        model_tensor_name = "pytorch_model.bin"
+        file_path_main = os.path.join(main_folder, model_tensor_name)
+    file_path_part = os.path.join(part_folder, model_tensor_name)
+    model_tensor_path = os.path.join(temp_folder, model_tensor_name)
+    os.remove(model_tensor_path)
+
+    if model_tensor_name == "model.safetensors":
+        merge_sefetensors(file_path_main, file_path_part, model_tensor_path)
+    elif model_tensor_name == "pytorch_model.bin":
+        merge_pytorch_bin(file_path_main, file_path_part, model_tensor_path)
+
     with open(flag_file, 'w') as f:
         pass
 
@@ -105,7 +123,12 @@ def load_only_embed_model_from_ckpt(checkpoint_path: str, merged_config):
         torch_dtype=config.torch_dtype,
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(temp_folder, use_fast=merged_config["use_fast_tokenizer"])
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(temp_folder, use_fast=merged_config["use_fast_tokenizer"])
+    except TypeError:
+        tokenizer = AutoTokenizer.from_pretrained(merged_config["base_model"],
+                                                  use_fast=merged_config["use_fast_tokenizer"])
+        tokenizer.pad_token_id = tokenizer.bos_token_id
 
     return model, tokenizer
 
@@ -163,6 +186,8 @@ def load_model_from_ckpt(checkpoint_path: str | Path,
         main_folder = Path(base_model_dir)
 
     config, merged_config = load_flat_config(main_folder / "config_base_model.yaml")
+    if merged_config["train_embed_only"]:
+        merged_config["lora"] = False
 
     if merged_config["lora"]:
         print(checkpoint_path)

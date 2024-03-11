@@ -7,13 +7,11 @@ import argparse
 
 import datasets
 import transformers
-from datasets import Dataset
 from transformers import (
     CONFIG_MAPPING,
     AutoConfig,
     AutoTokenizer,
     set_seed,
-    get_linear_schedule_with_warmup
 )
 
 from transformers.utils import check_min_version, send_example_telemetry
