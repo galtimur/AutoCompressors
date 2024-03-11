@@ -4,8 +4,6 @@ import time
 import configparser
 from dataclasses import dataclass
 
-from safetensors import safe_open
-from safetensors.torch import save_file
 import shutil
 
 import torch
@@ -103,32 +101,6 @@ def check_proc_flags(folder: str, max_proc: int, prefix: str):
 
     return all_files_exist
 
-def merge_ckpts(main_folder, part_folder, temp_folder, flag_filename=".merging_done_flag", config_filename = "config_base_model.yaml"):
-    flag_file = os.path.join(temp_folder, flag_filename)
-    if os.path.exists(temp_folder):
-        shutil.rmtree(temp_folder)
-    shutil.copytree(part_folder, temp_folder)
-    shutil.copy2(os.path.join(main_folder, config_filename), os.path.join(temp_folder, config_filename))
-    file_path_part = os.path.join(part_folder, "model.safetensors")
-    file_path_main = os.path.join(main_folder, "model.safetensors")
-    model_tensor_path = os.path.join(temp_folder, "model.safetensors")
-    os.remove(model_tensor_path)
-    tensors = {}
-    with safe_open(file_path_main, framework="pt") as f:
-        metadata = f.metadata()
-        for k in f.keys():
-            tensors[k] = f.get_tensor(k)
-
-    with safe_open(file_path_part, framework="pt") as f:
-        for k in f.keys():
-            tensors[k] = f.get_tensor(k)
-
-    save_file(tensors, model_tensor_path, metadata)
-    with open(flag_file, 'w') as f:
-        pass
-
-    return flag_file
-
 def load_check_merging(last_checkpoint: str, trainer):
     process_indx = trainer.accelerator.state.process_index
     max_proc = trainer.accelerator.num_processes
@@ -181,6 +153,14 @@ def save_set(set_to_save: set, file: str):
 def load_set(file: str):
     with open(file, 'r') as f:
         return set([line.strip() for line in f])
+
+def get_torch_device(gpu_num: int | None) -> torch.device:
+    if gpu_num is None:
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    else:
+        print(gpu_num)
+        device = torch.device(f'cuda:{gpu_num}')
+    return device
 
 @dataclass
 class ModelTrainingModules:

@@ -1,4 +1,9 @@
 from pathlib import Path
+import os
+import shutil
+
+from safetensors import safe_open
+from safetensors.torch import save_file
 
 from huggingface_hub.utils import HFValidationError
 from omegaconf import OmegaConf
@@ -7,12 +12,36 @@ from tokenizers import Tokenizer
 from transformers import LlamaConfig, AutoTokenizer
 
 from auto_compressor import LlamaAutoCompressorModel
-from utils import merge_ckpts
 
 
 # TODO check that llama is the model
 # if "llama" in (model_args.model_name_or_path or model_args.config_name).lower():
 
+def merge_ckpts(main_folder, part_folder, temp_folder, flag_filename=".merging_done_flag", config_filename = "config_base_model.yaml"):
+    flag_file = os.path.join(temp_folder, flag_filename)
+    if os.path.exists(temp_folder):
+        shutil.rmtree(temp_folder)
+    shutil.copytree(part_folder, temp_folder)
+    shutil.copy2(os.path.join(main_folder, config_filename), os.path.join(temp_folder, config_filename))
+    file_path_part = os.path.join(part_folder, "model.safetensors")
+    file_path_main = os.path.join(main_folder, "model.safetensors")
+    model_tensor_path = os.path.join(temp_folder, "model.safetensors")
+    os.remove(model_tensor_path)
+    tensors = {}
+    with safe_open(file_path_main, framework="pt") as f:
+        metadata = f.metadata()
+        for k in f.keys():
+            tensors[k] = f.get_tensor(k)
+
+    with safe_open(file_path_part, framework="pt") as f:
+        for k in f.keys():
+            tensors[k] = f.get_tensor(k)
+
+    save_file(tensors, model_tensor_path, metadata)
+    with open(flag_file, 'w') as f:
+        pass
+
+    return flag_file
 
 def load_flat_config(config_path):
 
