@@ -1,8 +1,8 @@
 import pandas as pd
 import json
 
-jsonl_file_path = "out/time_bench_result.jsonl"
-csv_file_path = "out/time_bench_result.csv"
+jsonl_file_path = "out/eval_lca_cc.json"
+csv_file_path = "out/eval_lca_cc.csv"
 
 data = []
 with open(jsonl_file_path, "r") as jsonl_file:

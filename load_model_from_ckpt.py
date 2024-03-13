@@ -11,7 +11,7 @@ from huggingface_hub.utils import HFValidationError
 from omegaconf import OmegaConf
 from peft import PeftModel, get_peft_model, LoraConfig
 from tokenizers import Tokenizer
-from transformers import LlamaConfig, AutoConfig, AutoTokenizer
+from transformers import LlamaConfig, AutoConfig, AutoTokenizer, AutoModelForCausalLM
 
 from auto_compressor import LlamaAutoCompressorModel
 from utils import check_proc_flags
@@ -202,6 +202,14 @@ def load_model_from_ckpt(checkpoint_path: str | Path,
 
     return model, tokenizer, merged_config
 
+def load_base_model(base_model_name: str | Path) -> tuple[LlamaAutoCompressorModel, Tokenizer, dict]:
+
+    tokenizer = AutoTokenizer.from_pretrained(base_model_name, use_fast=True)
+    tokenizer.pad_token_id = tokenizer.bos_token_id
+
+    model = AutoModelForCausalLM.from_pretrained(base_model_name)
+
+    return model, tokenizer
 
 if __name__ == '__main__':
     # checkpoint_path = "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_embed_only_test/checkpoint-9900"

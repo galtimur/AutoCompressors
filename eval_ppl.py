@@ -97,3 +97,32 @@ def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
         model.train()
 
     return losses_dict
+
+
+def evaluate_base_model(model, dataset, batch_size, max_samples, context_size) -> dict[str, float]:
+    model_training = model.training
+    model.eval()
+
+    def collate_fn(batch):
+        cll_batch = dict()
+        for k in batch[0].keys():
+            cll_batch[k] = torch.stack([torch.tensor(s[k], device="cuda") for s in batch])
+        return cll_batch
+
+    dl = DataLoader(dataset, batch_size, collate_fn=collate_fn)
+
+    samples_seen = 0
+    total_loss = 0
+    for samp_num, sample in tqdm(enumerate(dl, start=1)):
+        inp_ids = sample['input_ids'][:,-context_size:]
+        with torch.no_grad():
+            loss = model(inp_ids, labels=inp_ids).loss.item()
+            total_loss += loss
+        samples_seen += batch_size
+        if 0 < max_samples < samples_seen:
+            break
+
+    if model_training:
+        model.train()
+
+    return total_loss/samp_num
