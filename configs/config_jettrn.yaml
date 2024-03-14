@@ -3,9 +3,10 @@ defaults:
   do_eval: false
   # base_model: "princeton-nlp/Sheared-LLaMA-1.3B"
   base_model: "deepseek-ai/deepseek-coder-1.3b-base"
-  total_batch_size: 32 # total batch size # TODO rename later
-  per_device_eval_batch_size: 2
-  per_device_train_batch_size: 2
+  total_batch_size: 32 # total batch size
+  per_device_train_batch_size: 2 # 1 # 2
+  per_device_eval_batch_size: 6 # 3 # 2
+  eval_samples: 300
   warmup_steps: 5000
   save_steps: 900
   num_train_epochs: 1
@@ -51,16 +52,16 @@ output:
 
 training:
   summary_accumulation: true
-  lora: false
-  train_embed_only: true
-  use_kv: true
-  segments_per_substep: 2
-  training_substeps: 3
-  summary_length: 50
+  lora: true
+  train_embed_only: false
+  use_kv: false
+  segments_per_substep: 6 # 1 # 2
+  training_substeps: 4 # 1 # 3
+  summary_length: 12 # 0 # 50
   randomize_substeps: true
-  randomize_std: 0.2
+  randomize_std: 0.2 # 0 # 0.2
   segment_gradient_checkpointing: false
-  learning_rate: 4e-3
+  learning_rate: 8e-4
   resume_from_checkpoint: false
   # checkpoint_path: "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_embed_only_test/checkpoint-25"
   checkpointing: true  # If your training script supports checkpointing
