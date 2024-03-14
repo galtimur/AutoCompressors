@@ -69,6 +69,7 @@ def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
         inp_ids = sample['input_ids']
         # inp_ids = torch.tensor(inp, dtype=torch.long, device=device).unsqueeze(0)
         split_sizes = equal_size_splits(inp_ids, split_size)
+        torch.cuda.empty_cache()
         with torch.no_grad():
             logits = model(inp_ids, segment_lengths=split_sizes).logits
             bs, seq_len = inp_ids.shape

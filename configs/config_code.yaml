@@ -1,7 +1,7 @@
 defaults:
   do_train: true
   do_eval: false
-  # base_model: "princeton-nlp/Sheared-LLaMA-1.3B"
+#  base_model: "princeton-nlp/Sheared-LLaMA-1.3B"
   base_model: "deepseek-ai/deepseek-coder-1.3b-base"
   total_batch_size: 32 # total batch size # TODO rename later
   per_device_eval_batch_size: 2
@@ -31,36 +31,34 @@ defaults:
     - "YoutubeSubtitles"
 
 data:
-  preprocessed_train_datasets: ["dataset/train"]
-  # preprocessed_validation_datasets: ["dataset/test"]
-  preprocessed_validation_datasets: ["dataset/valid"]
+#  preprocessed_train_datasets: ["awettig/RedPajama-combined-15B-6K-llama"]
+  preprocessed_train_datasets: ["/mnt/data2/shared-data/autocompressors/6k_py_135664_samp"]
   preprocessing_num_workers: 0
   dataloader_num_workers: 0
   max_train_samples: null
-  # cache_dir: "/mnt/data2/galimzyanov/autocompressor/temp/"
   streaming_data: false
-  upload_aws: true
+  upload_aws: false
   s3_bucket: "jettrain-experiments"
-  s3_prefix: "Timur.Galimzyanov/outputs/autocompressors/checkpoints/"
+  s3_prefix: "Mikhail.Arkhipov/autocompressors/checkpoints/"
   s3_cred_filepath: "configs/aws_credentials"
 
 output:
   log_level: critical
   disable_tqdm: true
-  out_dir: "checkpoints/" #"/mnt/data2/galimzyanov/autocompressor/checkpoints/"
+  out_dir: "/mnt/data2/arkhipov/experiments/autocompressors/"
 
 training:
   summary_accumulation: true
-  lora: false
-  train_embed_only: true
-  use_kv: true
+  lora: true
+  train_embed_only: false
+  use_kv: false
   segments_per_substep: 2
   training_substeps: 3
   summary_length: 50
   randomize_substeps: true
   randomize_std: 0.2
   segment_gradient_checkpointing: false
-  learning_rate: 4e-3
+  learning_rate: 8e-4
   resume_from_checkpoint: false
   # checkpoint_path: "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_embed_only_test/checkpoint-25"
   checkpointing: true  # If your training script supports checkpointing
@@ -77,7 +75,6 @@ lora:
 wandb:
   report_to: "wandb"
   run_name: "deepseek-1.3B"
-  # run_name: "LLaMA-1.3B"
   dir: "checkpoints/" #"/mnt/data2/galimzyanov/autocompressor/checkpoints/"
   project: "autocompressors"
 #  resume_run: true
