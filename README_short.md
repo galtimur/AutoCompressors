@@ -24,7 +24,14 @@ You can pass a suffix to the name of your run on wandb (as well as checkpoint fo
 
 `CUDA_VISIBLE_DEVICES=1 python eval_lca_cc.py`
 
-to run main you should pass map:
+To run main you should pass checkpoint map file path (ckpt_map_path) that maps model name and checkpoint path.
+If the model name starts with "base_model", then no checkpoint would be used, the basic (deepseek or LLaMA) model would be initialized
+If the model name ends with `_some_integer`. Then `some_integer` would be used as the context size of the model. Otherwise, 6*1024 context would be used.
+The length of the segment is hardcoded to be = 1024.
 
+Another important parameters of the `eval_models_on_lcc` function is
+`limit`: number of LCA samples used for generation.
+`limit_loss_samples`: number of samples used for benchmarking evaluation
+`results_path`: path to the file, where output results would be written (by appending new line ti existing)
 
 `eval_models_on_lcc(ckpt_map_path, results_path, limit = 2000, limit_loss_samples = 1000)`
