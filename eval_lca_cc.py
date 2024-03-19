@@ -125,6 +125,8 @@ def eval_on_lcc(
 
     return results
 
+def dummy_inject(sample):
+    return sample
 
 def eval_cross_entropy(
     modules: dict,
@@ -151,6 +153,7 @@ def eval_cross_entropy(
             model,
             dataset_ce,
             batch_size,
+            sample_inject_function = dummy_inject,
             max_samples=limit_loss_samples,
             split_size=segment_length,
             context_size=context_size,
@@ -161,12 +164,14 @@ def eval_cross_entropy(
 
         num_chunks = eval_result['num_chunks']
         av_loss = eval_result["total_loss"]
+        first_chunk_loss = eval_result[f"chunk_0_loss"]
         last_chunk_loss = eval_result[f"chunk_{num_chunks-1}_loss"]
 
     time_used_loss = time.time() - start_time
     results = {
         "loss": av_loss,
         "last chunk loss": last_chunk_loss,
+        "first chunk loss": first_chunk_loss,
         "loss items/s": limit_loss_samples/time_used_loss,
         "number of loss items": limit_loss_samples,
     }

@@ -36,6 +36,7 @@ def equal_size_splits(text_or_token_ids: str | Tensor,
 def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
                              ds,
                              batch_size: int,
+                             sample_inject_function,
                              max_samples: int = 100,
                              split_size: int = 1024,
                              context_size: int = 6144,
@@ -60,6 +61,7 @@ def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
         cll_batch = dict()
         for k in batch[0].keys():
             cll_batch[k] = torch.stack([torch.tensor(s[k], device=device) for s in batch])
+        cll_batch = sample_inject_function(cll_batch)
         return cll_batch
     
     dl = DataLoader(ds, batch_size, collate_fn=collate_fn)
