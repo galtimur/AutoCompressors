@@ -38,7 +38,9 @@ def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
                              batch_size: int,
                              max_samples: int = 100,
                              split_size: int = 1024,
-                             disable_tqdm: bool = True
+                             context_size: int = 6144,
+                             is_auco: bool = True,
+                             disable_tqdm: bool = True,
                              ) -> dict[str, float]:
     if isinstance(model_or_path, (str, Path)):
         device = torch.device('cuda')
@@ -51,7 +53,6 @@ def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
 
     model_training = model.training
     model.eval()
-    # ds = load_dataset('awettig/RedPajama-combined-15B-6K-llama', split='test')
     log_losses = defaultdict(float)
     token_counts = defaultdict(int)
     
@@ -67,11 +68,15 @@ def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
     for samp_num, sample in tqdm(enumerate(dl), disable=disable_tqdm):
         # inp = ds[0]['input_ids']
         inp_ids = sample['input_ids']
+        inp_ids = inp_ids[:,:context_size]
         # inp_ids = torch.tensor(inp, dtype=torch.long, device=device).unsqueeze(0)
         split_sizes = equal_size_splits(inp_ids, split_size)
         torch.cuda.empty_cache()
         with torch.no_grad():
-            logits = model(inp_ids, segment_lengths=split_sizes).logits
+            if is_auco:
+                logits = model(inp_ids, segment_lengths=split_sizes).logits
+            else:
+                logits = model(inp_ids).logits
             bs, seq_len = inp_ids.shape
             logits = logits[:, :-1].reshape(-1, logits.shape[2])
             targets = inp_ids[:, 1:].reshape(-1)
@@ -93,6 +98,7 @@ def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
         losses_dict[k + '_ppl'] = np.exp(loss)
         losses_dict[k + '_num_tokens'] = token_counts[k]
         losses_dict['num_samples'] = batch_size * samp_num
+    losses_dict['num_chunks'] = len(chunk_token_loss_list)
 
     if model_training:
         model.train()

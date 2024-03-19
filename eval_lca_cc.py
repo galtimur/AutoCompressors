@@ -8,6 +8,7 @@ from pathlib import Path
 from transformers.generation import StoppingCriteria, StoppingCriteriaList
 from tqdm import tqdm
 
+from auto_compressor import LlamaAutoCompressorModel
 from load_model_from_ckpt import load_model_from_ckpt, load_base_model
 from eval_ppl import evaluate_ppl_red_pajamas, evaluate_base_model
 
@@ -137,25 +138,35 @@ def eval_cross_entropy(
     start_time = time.time()
     if dataset_ce is not None:
 
-        if not model_name.startswith("base_model") or model_name.startswith("fintuned"):
+        is_auco = isinstance(model, LlamaAutoCompressorModel)
+        if is_auco:
             batch_size = 8
             num_segments = run_config["training_substeps"] * run_config["segments_per_substep"]
             segment_length = 6 * 1024 // num_segments
-
-            eval_result = evaluate_ppl_red_pajamas(
-                model,
-                dataset_ce,
-                batch_size,
-                max_samples=limit_loss_samples,
-                split_size=segment_length,
-                disable_tqdm=False,
-            )
-            av_loss = eval_result["total_loss"]
         else:
-            av_loss = evaluate_base_model(model, dataset_ce, batch_size=1, max_samples=limit_loss_samples, context_size=context_size)
+            batch_size = 4
+            segment_length = 1024
+
+        eval_result = evaluate_ppl_red_pajamas(
+            model,
+            dataset_ce,
+            batch_size,
+            max_samples=limit_loss_samples,
+            split_size=segment_length,
+            context_size=context_size,
+            is_auco=is_auco,
+            disable_tqdm=False,
+        )
+        # , context_size=context_size
+
+        num_chunks = eval_result['num_chunks']
+        av_loss = eval_result["total_loss"]
+        last_chunk_loss = eval_result[f"chunk_{num_chunks-1}_loss"]
+
     time_used_loss = time.time() - start_time
     results = {
         "loss": av_loss,
+        "last chunk loss": last_chunk_loss,
         "loss items/s": limit_loss_samples/time_used_loss,
         "number of loss items": limit_loss_samples,
     }
@@ -246,4 +257,4 @@ def run_benchmark(
 if __name__ == "__main__":
     ckpt_map_path = 'configs/ckpt_name_map.json'
     results_path = "out/eval_lca_cc.json"
-    run_benchmark(ckpt_map_path, results_path, limit = 20, limit_loss_samples = 20, do_lcc=False, do_ce_loss=True)
+    run_benchmark(ckpt_map_path, results_path, limit = 20, limit_loss_samples = 1000, do_lcc=False, do_ce_loss=True)
