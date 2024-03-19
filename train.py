@@ -44,6 +44,14 @@ require_version(
 
 logger = logging.getLogger(__name__)
 
+def reset_parameters(model):
+    for layer in model.modules():
+        if hasattr(layer, 'reset_parameters'):
+            layer.reset_parameters()
+        else:
+            for module in layer.modules():
+                if hasattr(module, 'reset_parameters'):
+                    module.reset_parameters()
 
 def save_base_model(config_path, trainer):
     base_model_folder = Path(os.path.join(trainer.args.output_dir, "base_model"))

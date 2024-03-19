@@ -72,15 +72,19 @@ def eval_on_lcc(
     do_dump_results: bool = True,
     gpu_num: int | None = None,
     limit: int | None = None,
+    limit_loss_samples: int | None = None,
 ) -> dict:
 
     device = "cuda:0"
     if model_name.startswith("base_model"):
         model, tokenizer = load_base_model("deepseek-ai/deepseek-coder-1.3b-base")
-        match = re.search(r'\d+$', model_name)
-        context_size = int(match.group())
     else:
         model, tokenizer, run_config = load_model_from_ckpt(checkpoint_path)
+
+    match = re.search(r'_([0-9]+)$', model_name)
+    if match is not None:
+        context_size = int(match.group()[1:])
+    else:
         context_size = 6 * 1024
     model.eval()
     model.to(device)
@@ -88,9 +92,10 @@ def eval_on_lcc(
     stopping_criteria = StoppingCriteriaList([StopOnNewLine(tokenizer)])
     if ds_test is None:
         ds_test = LcaPythonCompletionDataset()
-    max_comp = 128
+    max_comp = 128 # max length of the line
     max_len_model = context_size  # model.config.max_position_embeddings
-    max_len_ctx = max_len_model - max_comp
+    max_len_ctx = max_len_model - max_comp # input context should be less that model context size minus max line length
+    assert max_len_ctx>0, "max_len_ctx should be positive!"
 
     grtrs = []
     preds = []
@@ -104,15 +109,24 @@ def eval_on_lcc(
     for sample in tqdm(ds_test):
         input_ids = tokenizer.encode(sample["context"], return_tensors="pt")
         input_ids = input_ids[:, -max_len_ctx:].to(device)
-        # prompt = tokenizer.decode(input_ids[0])
         with torch.no_grad():
-            out = model.generate(
-                input_ids,
-                max_new_tokens=max_comp,
-                stopping_criteria=stopping_criteria,
-                pad_token_id=tokenizer.pad_token_id,
-                do_sample=False,
-            )
+            if model_name.startswith("base_model"):
+                out = model.generate(
+                    input_ids,
+                    max_new_tokens=max_comp,
+                    stopping_criteria=stopping_criteria,
+                    pad_token_id=tokenizer.pad_token_id,
+                    do_sample=False,
+                )
+            else:
+                out = model.generate(
+                    input_ids,
+                    max_new_tokens=max_comp,
+                    stopping_criteria=stopping_criteria,
+                    pad_token_id=tokenizer.pad_token_id,
+                    do_sample=False,
+                    segment_lengths=1024,
+                )
         out_tokens = out[0, len(input_ids[0]) - 1 :]
         pred = tokenizer.decode(out_tokens).strip("\n")
         preds.append(pred)
@@ -125,10 +139,9 @@ def eval_on_lcc(
     exact_match = sum(gt == pr for gt, pr in zip(grtrs, preds)) / len(preds)
 
     start_time = time.time()
-    max_loss_samples = 1000
     if dataset_ppl is not None:
 
-        if not model_name.startswith("base_model"):
+        if not model_name.startswith("base_model") or model_name.startswith("fintuned"):
             batch_size = 8
             segment_size = context_size // (
                     run_config["training_substeps"] * run_config["segments_per_substep"]
@@ -137,13 +150,13 @@ def eval_on_lcc(
                 model,
                 dataset_ppl,
                 batch_size,
-                max_samples=max_loss_samples,
+                max_samples=limit_loss_samples,
                 split_size=segment_size,
                 disable_tqdm=False,
             )
             av_loss = eval_result["total_loss"]
         else:
-            av_loss = evaluate_base_model(model, dataset_ppl, batch_size=1, max_samples=max_loss_samples, context_size=context_size)
+            av_loss = evaluate_base_model(model, dataset_ppl, batch_size=1, max_samples=limit_loss_samples, context_size=context_size)
     time_used_loss = time.time() - start_time
     results = {
         "task": "lca_completion",
@@ -151,16 +164,16 @@ def eval_on_lcc(
         "exact_match_rate": exact_match,
         "loss": av_loss,
         "LCA items/s": num_samples/time_used_lca,
-        "loss items/s": max_loss_samples/time_used_loss,
+        "loss items/s": limit_loss_samples/time_used_loss,
         "number of LCA items": num_samples,
-        "number of loss items": max_loss_samples,
+        "number of loss items": limit_loss_samples,
         "checkpoint_path": checkpoint_path,
     }
     if do_dump_results:
         dump_results(results, results_directory, results_filename)
     return results
 
-def eval_models_on_lcc(ckpt_map_path: str | Path, results_path: str | Path, limit: int | None = None):
+def eval_models_on_lcc(ckpt_map_path: str | Path, results_path: str | Path, limit: int | None = None, limit_loss_samples: int | None = None):
     with open(ckpt_map_path, 'r') as f:
         ckpt_name_map = json.load(f)
     dataset = LcaPythonCompletionDataset()
@@ -177,6 +190,7 @@ def eval_models_on_lcc(ckpt_map_path: str | Path, results_path: str | Path, limi
             results_filename="eval_lca_cc.json",
             do_dump_results=False,
             limit=limit,
+            limit_loss_samples=limit_loss_samples
         )
         with open(results_path, "a") as jsonl_file:
             jsonl_file.write(json.dumps(eval_result) + "\n")
@@ -185,4 +199,4 @@ def eval_models_on_lcc(ckpt_map_path: str | Path, results_path: str | Path, limi
 if __name__ == "__main__":
     ckpt_map_path = 'configs/ckpt_name_map.json'
     results_path = "out/eval_lca_cc.json"
-    eval_models_on_lcc(ckpt_map_path, results_path, limit = 2000)
+    eval_models_on_lcc(ckpt_map_path, results_path, limit = 2000, limit_loss_samples = 1000)

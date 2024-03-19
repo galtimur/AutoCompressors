@@ -206,8 +206,8 @@ def load_base_model(base_model_name: str | Path) -> tuple[LlamaAutoCompressorMod
 
     tokenizer = AutoTokenizer.from_pretrained(base_model_name, use_fast=True)
     tokenizer.pad_token_id = tokenizer.bos_token_id
-
-    model = AutoModelForCausalLM.from_pretrained(base_model_name)
+    # model = AutoModelForCausalLM.from_pretrained(base_model_name)
+    model = AutoModelForCausalLM.from_pretrained(base_model_name, attn_implementation="flash_attention_2", torch_dtype = torch.bfloat16)
 
     return model, tokenizer
 

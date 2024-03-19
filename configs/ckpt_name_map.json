@@ -1,1 +1,2 @@
-{"base_model_256": ""}
+{"base_lora_16384": "/mnt/data2/shared-data/autocompressors/checkpoints/deepseek-1.3B_sub3_seg2_sum50_code_base/checkpoint-10000",
+  "base_model_16384": ""}
