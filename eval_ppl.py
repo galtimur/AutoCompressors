@@ -37,7 +37,7 @@ def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
                              ds,
                              batch_size: int,
                              max_samples: int = 100,
-                             split_size: int = 1536,
+                             split_size: int = 1024,
                              disable_tqdm: bool = True
                              ) -> dict[str, float]:
     if isinstance(model_or_path, (str, Path)):
