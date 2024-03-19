@@ -19,3 +19,12 @@ AutoCompressors on multiple GPUs.
 Parameters are set in the configs/config.yaml. Parameters for hardware are set in configs/accelerate_4gpu.yaml.
 For training on single GPU and debugging you can run `python train.py`.
 You can pass a suffix to the name of your run on wandb (as well as checkpoint folders) by --suffix your_suffix
+
+### Eval on generation and loss
+
+`CUDA_VISIBLE_DEVICES=1 python eval_lca_cc.py`
+
+to run main you should pass map:
+
+
+`eval_models_on_lcc(ckpt_map_path, results_path, limit = 2000, limit_loss_samples = 1000)`

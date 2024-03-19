@@ -22,7 +22,7 @@ class ModelTrainingModules:
     val_dataset: object
     merge_config: object
 
-def get_run_mudules(args, config_path, bench_parameters, max_val_samples, return_dataset=True, return_trainer=True):
+def get_run_mudules(args, config_path, bench_parameters={}, max_val_samples=300, return_dataset=True, return_trainer=True):
 
     model_args, data_args, training_args, merge_config = parse_config(config_path, args, override_dict=bench_parameters)
     model_args.use_kv = training_args.use_kv
@@ -30,10 +30,12 @@ def get_run_mudules(args, config_path, bench_parameters, max_val_samples, return
     if return_trainer or return_dataset:
         lm_datasets, dataset_length = load_preprocessed_datasets(data_args, model_args)
         train_dataset = lm_datasets["train"]
-        val_dataset = train_dataset.select(range(max_val_samples))
-        train_dataset = train_dataset.select(range(data_args.max_train_samples))
+        val_dataset = lm_datasets["val"]
+        val_dataset = val_dataset.select(range(max_val_samples))
+        if data_args.max_train_samples is not None:
+            train_dataset = train_dataset.select(range(data_args.max_train_samples))
         example = next(iter(train_dataset))
-        context_size = len(example["labels"])
+        context_size = len(example["input_ids"])
     else:
         train_dataset = None
         val_dataset = None
@@ -68,7 +70,13 @@ def get_run_mudules(args, config_path, bench_parameters, max_val_samples, return
     config.use_kv = training_args.use_kv
 
     # Create model
-    if "llama" in (model_args.model_name_or_path or model_args.config_name).lower():
+    is_llama = (
+        "llama" in (model_args.model_name_or_path or model_args.config_name).lower()
+    )
+    is_deepseek = (
+        "deepseek" in (model_args.model_name_or_path or model_args.config_name).lower()
+    )
+    if is_llama or is_deepseek:
         from auto_compressor import LlamaAutoCompressorModel as AutoCompressorModel
     else:
         from auto_compressor import AutoCompressorModel
