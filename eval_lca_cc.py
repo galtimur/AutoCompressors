@@ -129,20 +129,19 @@ def eval_cross_entropy(
     modules: dict,
     dataset_ce: str | None,
     context_size: int,
-    segment_length: int | None = None,
     limit_loss_samples: int | None = None,
 ) -> dict:
 
     model, tokenizer, run_config, model_name = modules["model"], modules["tokenizer"], modules["run_config"], modules["model_name"]
-    if segment_length is None:
-        num_segments = run_config["training_substeps"] * run_config["segments_per_substep"]
-        segment_length = context_size // num_segments
 
     start_time = time.time()
     if dataset_ce is not None:
 
         if not model_name.startswith("base_model") or model_name.startswith("fintuned"):
             batch_size = 8
+            num_segments = run_config["training_substeps"] * run_config["segments_per_substep"]
+            segment_length = 6 * 1024 // num_segments
+
             eval_result = evaluate_ppl_red_pajamas(
                 model,
                 dataset_ce,
@@ -169,7 +168,6 @@ def eval_model(
     ds_test: str | None,
     dataset_ce: str | None,
     model_name: str,
-    segment_length: int | None = None,
     limit: int | None = None,
     limit_loss_samples: int | None = None,
     do_lcc: bool = True,
@@ -210,7 +208,6 @@ def eval_model(
             modules,
             dataset_ce,
             context_size,
-            segment_length,
             limit_loss_samples)
         results.update(result_ce)
 
@@ -221,7 +218,6 @@ def eval_model(
 def run_benchmark(
         ckpt_map_path: str | Path,
         results_path: str | Path,
-        segment_length: int | None = None,
         limit: int | None = None,
         limit_loss_samples: int | None = None,
         do_lcc: bool = True,
@@ -238,7 +234,6 @@ def run_benchmark(
             dataset_lcc,
             dataset_ce=dataset_ce,
             model_name=model_name,
-            segment_length=segment_length,
             limit=limit,
             limit_loss_samples=limit_loss_samples,
             do_lcc = do_lcc,
@@ -251,4 +246,4 @@ def run_benchmark(
 if __name__ == "__main__":
     ckpt_map_path = 'configs/ckpt_name_map.json'
     results_path = "out/eval_lca_cc.json"
-    run_benchmark(ckpt_map_path, results_path, segment_length=1024, limit = 20, limit_loss_samples = 20, do_lcc=False, do_ce_loss=True)
+    run_benchmark(ckpt_map_path, results_path, limit = 20, limit_loss_samples = 20, do_lcc=False, do_ce_loss=True)
