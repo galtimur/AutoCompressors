@@ -28,14 +28,15 @@ def generate_dummy_and_time(args, config_path, n_tokens = 128):
     with torch.no_grad():
         start_time = time.time()
         out = model(example, segment_lengths=1024)
-        init_time = start_time
+        init_time = time.time() - start_time
+        start_time = time.time()
         past_kv = out.past_key_values
         for i in range(n_tokens):
             out = model(example[:,:1], past_key_values=past_kv)
             past_kv = out.past_key_values
-    pass
-    pass
+        generate_time = time.time() - start_time
 
+    return {"init time": init_time, "generate time": generate_time}
 
 
 
@@ -49,4 +50,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     config_path = "configs/config_dev.yaml"
 
-    main(args, config_path)
+    generate_dummy_and_time(args, config_path)

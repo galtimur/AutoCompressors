@@ -28,6 +28,7 @@ To run main you should pass checkpoint map file path (ckpt_map_path) that maps m
 If the model name starts with "base_model", then no checkpoint would be used, the basic (deepseek or LLaMA) model would be initialized
 If the model name ends with `_some_integer`. Then `some_integer` would be used as the context size of the model. Otherwise, 6*1024 context would be used.
 The length of the segment is hardcoded to be = 1024.
+For the generation we fixed maximal length of the line = 128.
 
 Another important parameters of the `eval_models_on_lcc` function is
 `limit`: number of LCA samples used for generation.
