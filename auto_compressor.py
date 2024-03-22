@@ -69,6 +69,7 @@ class AutoCompressorMixin:
             self.use_kv = config.use_kv
         else:
             self.use_kv = False
+        self.first_generate = True
 
         if config.summary_length > 0:
             self.embed_summary = nn.Embedding(config.summary_length, self.get_input_embeddings().embedding_dim)
@@ -155,7 +156,7 @@ class AutoCompressorMixin:
         # If we use keys-values, we ommit softprompts in model input
         if self.use_kv:
             new_softprompt = new_softprompt[:, :0, :]
-        outputs.past_key_values = cut_past_kv(outputs.past_key_values, summary_length)
+            outputs.past_key_values = cut_past_kv(outputs.past_key_values, summary_length)
         return outputs, segment_last_hiddens, new_softprompt
 
     def get_past_key_values_len(self, past_key_values):
@@ -182,8 +183,10 @@ class AutoCompressorMixin:
             # Replace softprompt in direct argument with the softprompt in past_key_values
             past_key_values, softprompt = past_key_values["past_key_values"], past_key_values["softprompt"]
             past_key_values_softprompt_length = softprompt.size(1)
+            # output_softprompt = False
         else:
             past_key_values_softprompt_length = 0
+            # output_softprompt = True
 
         past_key_values_length = self.get_past_key_values_len(past_key_values) - past_key_values_softprompt_length
 
@@ -262,8 +265,8 @@ class AutoCompressorMixin:
 
             if self.config.accumulate_summary:
                 softprompt = torch.cat([softprompt, new_softprompt], dim=1)
-                past_key_values = accum_past_kv(past_key_values, outputs.past_key_values)
-                # past_key_values = outputs.past_key_values
+                if self.use_kv:
+                    past_key_values = accum_past_kv(past_key_values, outputs.past_key_values)
             elif new_softprompt.size(1) > 0:
                 softprompt = new_softprompt
 
@@ -276,7 +279,7 @@ class AutoCompressorMixin:
                 past_key_values_softprompt_length = 0
 
         if not self.use_kv:
-        # Output past values of last segment
+            # Output past values of last segment
             past_key_values = outputs.past_key_values
 
         # Reset placeholder positions

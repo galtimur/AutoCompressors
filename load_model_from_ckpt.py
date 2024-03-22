@@ -1,17 +1,98 @@
 from pathlib import Path
+import os
+import shutil
+import time
+import torch
+
+from safetensors import safe_open
+from safetensors.torch import save_file
 
 from huggingface_hub.utils import HFValidationError
 from omegaconf import OmegaConf
 from peft import PeftModel, get_peft_model, LoraConfig
 from tokenizers import Tokenizer
-from transformers import LlamaConfig, AutoTokenizer
+from transformers import LlamaConfig, AutoConfig, AutoTokenizer, AutoModelForCausalLM
 
 from auto_compressor import LlamaAutoCompressorModel
-from utils import merge_ckpts
+from utils import check_proc_flags
 
 
 # TODO check that llama is the model
 # if "llama" in (model_args.model_name_or_path or model_args.config_name).lower():
+
+def merge_sefetensors(file_path_main, file_path_part, model_tensor_path):
+    tensors = {}
+    with safe_open(file_path_main, framework="pt") as f:
+        metadata = f.metadata()
+        for k in f.keys():
+            tensors[k] = f.get_tensor(k)
+
+    with safe_open(file_path_part, framework="pt") as f:
+        for k in f.keys():
+            tensors[k] = f.get_tensor(k)
+    save_file(tensors, model_tensor_path, metadata)
+
+def merge_pytorch_bin(file_path_main, file_path_part, model_tensor_path):
+    base_model = torch.load(file_path_main)
+    embeddings = torch.load(file_path_part)
+    base_model.update(embeddings)
+    torch.save(base_model, model_tensor_path)
+
+def merge_ckpts(main_folder, part_folder, temp_folder, flag_filename=".merging_done_flag", config_filename = "config_base_model.yaml"):
+    flag_file = os.path.join(temp_folder, flag_filename)
+    if os.path.exists(temp_folder):
+        shutil.rmtree(temp_folder)
+    shutil.copytree(part_folder, temp_folder)
+    shutil.copy2(os.path.join(main_folder, config_filename), os.path.join(temp_folder, config_filename))
+    model_tensor_name = "model.safetensors"
+    file_path_main = os.path.join(main_folder, model_tensor_name)
+    if not os.path.exists(file_path_main):
+        model_tensor_name = "pytorch_model.bin"
+        file_path_main = os.path.join(main_folder, model_tensor_name)
+    file_path_part = os.path.join(part_folder, model_tensor_name)
+    model_tensor_path = os.path.join(temp_folder, model_tensor_name)
+    os.remove(model_tensor_path)
+
+    if model_tensor_name == "model.safetensors":
+        merge_sefetensors(file_path_main, file_path_part, model_tensor_path)
+    elif model_tensor_name == "pytorch_model.bin":
+        merge_pytorch_bin(file_path_main, file_path_part, model_tensor_path)
+
+    with open(flag_file, 'w') as f:
+        pass
+
+    return flag_file
+
+def load_check_merging(last_checkpoint: str, trainer):
+    process_indx = trainer.accelerator.state.process_index
+    max_proc = trainer.accelerator.num_processes
+    base_folder = os.path.dirname(last_checkpoint)
+    temp_folder = os.path.join(base_folder, "checkpoint_merge_temp")
+    flag_filename = ".merging_done_flag"
+    flag_file = os.path.join(temp_folder, flag_filename)
+    flag_prefix = ".flag_proc"
+    # TODO add node index too
+    flag_file_process = os.path.join(temp_folder, f"{flag_prefix}_{process_indx}")
+    if trainer.state.is_local_process_zero and trainer.state.is_world_process_zero:
+        main_model_folder = os.path.join(base_folder, "base_model")
+        config_filename = "config_base_model.yaml"
+        merge_ckpts(main_model_folder, last_checkpoint, temp_folder, flag_filename, config_filename)
+    else:
+        exist_merge = os.path.exists(flag_file)
+        while not exist_merge:
+            exist_merge = os.path.exists(flag_file)
+            time.sleep(0.2)
+
+    trainer._load_from_checkpoint(temp_folder)
+    with open(flag_file_process, 'w') as f:
+        pass
+
+    wait = not check_proc_flags(temp_folder, max_proc, flag_prefix)
+    while wait:
+        wait = not check_proc_flags(temp_folder, max_proc, flag_prefix)
+        time.sleep(0.2)
+    if trainer.state.is_local_process_zero and trainer.state.is_world_process_zero:
+        shutil.rmtree(temp_folder)
 
 
 def load_flat_config(config_path):
@@ -42,7 +123,12 @@ def load_only_embed_model_from_ckpt(checkpoint_path: str, merged_config):
         torch_dtype=config.torch_dtype,
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(temp_folder, use_fast=merged_config["use_fast_tokenizer"])
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(temp_folder, use_fast=merged_config["use_fast_tokenizer"])
+    except TypeError:
+        tokenizer = AutoTokenizer.from_pretrained(merged_config["base_model"],
+                                                  use_fast=merged_config["use_fast_tokenizer"])
+        tokenizer.pad_token_id = tokenizer.bos_token_id
 
     return model, tokenizer
 
@@ -52,7 +138,21 @@ def load_lora_model_from_ckpt(checkpoint_path: str | Path,
                               merged_config: dict) -> tuple[LlamaAutoCompressorModel, Tokenizer]:
     if isinstance(checkpoint_path, str):
         checkpoint_path = Path(checkpoint_path)
-    config = LlamaConfig.from_pretrained(base_model_dir)
+    if "llama" in merged_config['base_model'].lower():
+        config = LlamaConfig.from_pretrained(base_model_dir)
+        tokenizer = AutoTokenizer.from_pretrained(checkpoint_path, use_fast=merged_config["use_fast_tokenizer"])
+    elif os.path.exists(base_model_dir / "config.json"):
+        config = AutoConfig.from_pretrained(base_model_dir)
+        tokenizer = AutoTokenizer.from_pretrained(checkpoint_path, use_fast=merged_config["use_fast_tokenizer"])
+    else:
+        config = AutoConfig.from_pretrained(merged_config["base_model"])
+        config.summary_length = merged_config["summary_length"]
+        config.accumulate_summary = merged_config["accumulate_summary"]
+        config.segment_gradient_checkpointing = merged_config["segment_gradient_checkpointing"]
+        config.use_kv = merged_config["use_kv"]
+
+        tokenizer = AutoTokenizer.from_pretrained(merged_config["base_model"], use_fast=merged_config["use_fast_tokenizer"])
+        tokenizer.pad_token_id = tokenizer.bos_token_id
 
     model = LlamaAutoCompressorModel.from_pretrained(checkpoint_path, config=config, torch_dtype=config.torch_dtype)
 
@@ -70,8 +170,6 @@ def load_lora_model_from_ckpt(checkpoint_path: str | Path,
 
     model = model.merge_and_unload()
 
-    tokenizer = AutoTokenizer.from_pretrained(checkpoint_path, use_fast=merged_config["use_fast_tokenizer"])
-
     return model, tokenizer
 
 
@@ -88,6 +186,8 @@ def load_model_from_ckpt(checkpoint_path: str | Path,
         main_folder = Path(base_model_dir)
 
     config, merged_config = load_flat_config(main_folder / "config_base_model.yaml")
+    if merged_config["train_embed_only"]:
+        merged_config["lora"] = False
 
     if merged_config["lora"]:
         print(checkpoint_path)
@@ -102,6 +202,14 @@ def load_model_from_ckpt(checkpoint_path: str | Path,
 
     return model, tokenizer, merged_config
 
+def load_base_model(base_model_name: str | Path) -> tuple[LlamaAutoCompressorModel, Tokenizer, dict]:
+
+    tokenizer = AutoTokenizer.from_pretrained(base_model_name, use_fast=True)
+    tokenizer.pad_token_id = tokenizer.bos_token_id
+    # model = AutoModelForCausalLM.from_pretrained(base_model_name)
+    model = AutoModelForCausalLM.from_pretrained(base_model_name, attn_implementation="flash_attention_2", torch_dtype = torch.bfloat16)
+
+    return model, tokenizer
 
 if __name__ == '__main__':
     # checkpoint_path = "/mnt/data2/galimzyanov/autocompressor/checkpoints/LLaMA-1.3B_sub3_seg2_sum50_embed_only_test/checkpoint-9900"

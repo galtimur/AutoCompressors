@@ -1,11 +1,14 @@
 import os
 import re
-import time
+import torch
 import configparser
 
-from safetensors import safe_open
-from safetensors.torch import save_file
-import shutil
+from transformers.utils import check_min_version
+from transformers.utils.versions import require_version
+
+# Will error if the minimal version of Transformers is not installed. Remove at your own risks.
+check_min_version("4.22.0")
+require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/language-modeling/requirements.txt")
 
 
 def get_aws_credentials_local(cred_file: str = "~/.aws/credentials"):
@@ -81,62 +84,13 @@ def check_proc_flags(folder: str, max_proc: int, prefix: str):
 
     return all_files_exist
 
-def merge_ckpts(main_folder, part_folder, temp_folder, flag_filename=".merging_done_flag", config_filename = "config_base_model.yaml"):
-    flag_file = os.path.join(temp_folder, flag_filename)
-    if os.path.exists(temp_folder):
-        shutil.rmtree(temp_folder)
-    shutil.copytree(part_folder, temp_folder)
-    shutil.copy2(os.path.join(main_folder, config_filename), os.path.join(temp_folder, config_filename))
-    file_path_part = os.path.join(part_folder, "model.safetensors")
-    file_path_main = os.path.join(main_folder, "model.safetensors")
-    model_tensor_path = os.path.join(temp_folder, "model.safetensors")
-    os.remove(model_tensor_path)
-    tensors = {}
-    with safe_open(file_path_main, framework="pt") as f:
-        metadata = f.metadata()
-        for k in f.keys():
-            tensors[k] = f.get_tensor(k)
-
-    with safe_open(file_path_part, framework="pt") as f:
-        for k in f.keys():
-            tensors[k] = f.get_tensor(k)
-
-    save_file(tensors, model_tensor_path, metadata)
-    with open(flag_file, 'w') as f:
-        pass
-
-    return flag_file
-
-def load_check_merging(last_checkpoint: str, trainer):
-    process_indx = trainer.accelerator.state.process_index
-    max_proc = trainer.accelerator.num_processes
-    base_folder = os.path.dirname(last_checkpoint)
-    temp_folder = os.path.join(base_folder, "checkpoint_merge_temp")
-    flag_filename = ".merging_done_flag"
-    flag_file = os.path.join(temp_folder, flag_filename)
-    flag_prefix = ".flag_proc"
-    # TODO add node index too
-    flag_file_process = os.path.join(temp_folder, f"{flag_prefix}_{process_indx}")
-    if trainer.state.is_local_process_zero and trainer.state.is_world_process_zero:
-        main_model_folder = os.path.join(base_folder, "base_model")
-        config_filename = "config_base_model.yaml"
-        merge_ckpts(main_model_folder, last_checkpoint, temp_folder, flag_filename, config_filename)
+def get_torch_device(gpu_num: int | None) -> torch.device:
+    if gpu_num is None:
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     else:
-        exist_merge = os.path.exists(flag_file)
-        while not exist_merge:
-            exist_merge = os.path.exists(flag_file)
-            time.sleep(0.2)
-
-    trainer._load_from_checkpoint(temp_folder)
-    with open(flag_file_process, 'w') as f:
-        pass
-
-    wait = not check_proc_flags(temp_folder, max_proc, flag_prefix)
-    while wait:
-        wait = not check_proc_flags(temp_folder, max_proc, flag_prefix)
-        time.sleep(0.2)
-    if trainer.state.is_local_process_zero and trainer.state.is_world_process_zero:
-        shutil.rmtree(temp_folder)
+        print(gpu_num)
+        device = torch.device(f'cuda:{gpu_num}')
+    return device
 
 def wandb_setup(run_id):
 

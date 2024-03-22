@@ -50,8 +50,16 @@ class DataCollator:
 
         for i, feature in enumerate(features):
             input_ids[i, :len(feature["input_ids"])] = torch.tensor(feature["input_ids"], dtype=torch.long)
-            attention_mask[i, :len(feature["input_ids"])] = torch.tensor(feature["attention_mask"], dtype=torch.long)
-            labels[i, :len(feature["input_ids"])] = torch.tensor(feature["labels"], dtype=torch.long)
+            if "attention_mask" in feature:
+                attention_mask[i, :len(feature["input_ids"])] = torch.tensor(feature["attention_mask"], dtype=torch.long)
+            else:
+                # TODO account for padding
+                attention_mask = torch.ones_like(input_ids)
+            if "labels" in feature:
+                labels[i, :len(feature["input_ids"])] = torch.tensor(feature["labels"], dtype=torch.long)
+            else:
+                # TODO account for padding
+                labels[i, : len(feature['input_ids'])] = input_ids[i, :len(feature['input_ids'])]
         return dict(input_ids=input_ids,
                     attention_mask=attention_mask,
                     labels=labels)
@@ -281,8 +289,16 @@ class SubstepTrainer(BaseTrainer):
         if not self.args.randomize_substeps:
             total_length = sum(self.args.segment_lengths) * self.args.training_substeps
             inputs["input_ids"] = inputs["input_ids"][:, -total_length:]
-            inputs["attention_mask"] = inputs["attention_mask"][:, -total_length:]
-            inputs["labels"] = inputs["labels"][:, -total_length:]
+            if "attention_mask" in inputs:
+                inputs["attention_mask"] = inputs["attention_mask"][:, -total_length:]
+            else:
+                # TODO account for padding
+                inputs["attention_mask"] = torch.ones_like(inputs["input_ids"])
+            if "labels" in inputs:
+                inputs["labels"] = inputs["labels"][:, -total_length:]
+            else:
+                # TODO account for padding
+                inputs["labels"] = inputs["input_ids"][:, -total_length:]
 
         slices = torch.linspace(0, inputs["input_ids"].shape[-1], steps=self.args.training_substeps + 1, device=inputs["input_ids"].device, dtype=torch.long)
         input_slice = {k: v[:, slices[substep]: slices[substep+1]] for k, v in inputs.items()}

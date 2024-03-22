@@ -95,6 +95,7 @@ class EvalCallback(TrainerCallback):
         if state.is_local_process_zero and state.is_world_process_zero:
             model_training = model.training
             model.eval()
+            torch.cuda.empty_cache()
             eval_result = evaluate_ppl_red_pajamas(model, self.ds, self.batch_size, max_samples=self.max_samples, split_size=self.split_size)
             eval_result = {f"val/{key}": value for key, value in eval_result.items() if self.pattern.match(key)}
             wandb.log(eval_result)

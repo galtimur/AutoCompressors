@@ -16,6 +16,10 @@ class TrainingArguments(HfTrainingArguments):
         default=1,
         metadata={"help": "Size of the accumulated batch"}
     )
+    eval_samples: Optional[int] = field(
+        default=300,
+        metadata={"help": "Number of samples to eval"}
+    )
     summary_length: int = field(
         default=0,
         metadata={"help": "Number of summary tokens. 0 allocates no space for summary tokens."}
