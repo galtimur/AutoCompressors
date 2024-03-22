@@ -32,11 +32,13 @@ def equal_size_splits(text_or_token_ids: str | Tensor,
         splits[-1] = last_split_rem
     return splits
  
+def dummy_inject(sample):
+    return sample
 
 def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
                              ds,
                              batch_size: int,
-                             sample_inject_function,
+                             sample_inject_function = None,
                              max_samples: int = 100,
                              split_size: int = 1024,
                              context_size: int = 6144,
@@ -56,27 +58,28 @@ def evaluate_ppl_red_pajamas(model_or_path: nn.Module | str | Path,
     model.eval()
     log_losses = defaultdict(float)
     token_counts = defaultdict(int)
-    
+
+    if sample_inject_function is None:
+        sample_inject_function = dummy_inject
     def collate_fn(batch):
         cll_batch = dict()
         for k in batch[0].keys():
             cll_batch[k] = torch.stack([torch.tensor(s[k], device=device) for s in batch])
-        cll_batch = sample_inject_function(cll_batch)
+
         return cll_batch
     
     dl = DataLoader(ds, batch_size, collate_fn=collate_fn)
     
     samples_seen = 0
     for samp_num, sample in tqdm(enumerate(dl), disable=disable_tqdm):
-        # inp = ds[0]['input_ids']
         inp_ids = sample['input_ids']
+        inp_ids = sample_inject_function(inp_ids)
         inp_ids = inp_ids[:,:context_size]
-        # inp_ids = torch.tensor(inp, dtype=torch.long, device=device).unsqueeze(0)
-        split_sizes = equal_size_splits(inp_ids, split_size)
+        # split_sizes = equal_size_splits(inp_ids, split_size)
         torch.cuda.empty_cache()
         with torch.no_grad():
             if is_auco:
-                logits = model(inp_ids, segment_lengths=split_sizes).logits
+                logits = model(inp_ids, segment_lengths=split_size).logits
             else:
                 logits = model(inp_ids).logits
             bs, seq_len = inp_ids.shape

@@ -5,10 +5,10 @@ defaults:
   base_model: "deepseek-ai/deepseek-coder-1.3b-base"
   total_batch_size: 32 # total batch size
   per_device_train_batch_size: 2 # 2 # 1 # 2
-  per_device_eval_batch_size: 6 # 6 # 3 # 2
+  per_device_eval_batch_size: 2 # 6 # 3 # 2
   eval_samples: 300
   warmup_steps: 500
-  save_steps: 500
+  save_steps: 1000
   num_train_epochs: 10
   logging_steps: 1
   add_special_tokens: false
@@ -52,12 +52,12 @@ output:
 
 training:
   summary_accumulation: true
-  lora: false
-  train_embed_only: true
+  lora: true
+  train_embed_only: false
   use_kv: false
-  segments_per_substep: 4 # 6 # 1 # 2
-  training_substeps: 6 # 4 # 1 # 3
-  summary_length: 12 # 12 # 0 # 50
+  segments_per_substep: 2 # 6 # 1 # 2
+  training_substeps: 3 # 4 # 1 # 3
+  summary_length: 50 # 12 # 0 # 50
   randomize_substeps: true
   randomize_std: 0.2 # 0.2 # 0 # 0.2
   segment_gradient_checkpointing: false
