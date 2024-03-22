@@ -31,6 +31,12 @@ def convert_past_kv_bfloat_and_detach(past_kv):
         return None
     return tuple([(past_kv_layer[0].detach().bfloat16(), past_kv_layer[1]) for past_kv_layer in past_kv])
 
+def copy_segment(input_ids, segment_size: int, n_to_copy: int):
+    s = segment_size
+    n = n_to_copy
+    input_ids[:, n * s:(n + 1) * s] = input_ids[:, -s:]
+
+    return input_ids
 
 class DataCollator:
     """Simple data collator for language modeling with padding."""
@@ -38,8 +44,11 @@ class DataCollator:
         self.tokenizer = tokenizer
         self.additional_args = additional_args
         self.pad_token_id = self.tokenizer.bos_token_id
+        self.counter = 0
+        self.segment_to_copy = 0
 
     def __call__(self, features: Any) -> Dict[str, Any]:
+        self.counter += 1
         bsz = len(features)
         max_length = max(len(feature["input_ids"]) for feature in features)
         # max_length = self.max_length
@@ -60,6 +69,16 @@ class DataCollator:
             else:
                 # TODO account for padding
                 labels[i, : len(feature['input_ids'])] = input_ids[i, :len(feature['input_ids'])]
+
+        # if self.counter % 6000 == 0:
+        #     self.segment_to_copy += 1
+        #     print(self.segment_to_copy)
+        # if self.segment_to_copy < 5:
+        #     input_ids = copy_segment(input_ids, 1024, self.segment_to_copy)
+        #     labels = copy_segment(labels, 1024, self.segment_to_copy)
+        # input_ids = copy_segment(input_ids, 1024, 0)
+        # labels = copy_segment(labels, 1024, 0)
+
         return dict(input_ids=input_ids,
                     attention_mask=attention_mask,
                     labels=labels)

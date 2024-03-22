@@ -1,6 +1,7 @@
 {"base_model_16384": "",
 "base_model_3072": "",
 "base_model_1536": "",
+"base_model_1024": "",
 "base_model_768": "",
 "base_model_384": "",
 "base_model_192": "",
@@ -12,4 +13,7 @@
 "lora_6x4": "/mnt/data2/shared-data/autocompressors/checkpoints/deepseek-1.3B_sub6_seg4_sum12/checkpoint-10000",
 "emb_only_6x4": "/mnt/data2/shared-data/autocompressors/checkpoints/deepseek-1.3B_sub6_seg4_sum12_embed_only/checkpoint-10000",
 "fintuned_3072": "/mnt/data2/shared-data/autocompressors/checkpoints/deepseek-1.3B_sub1_seg1_sum0/checkpoint-10000",
-"fintuned_6144": "/mnt/data2/shared-data/autocompressors/checkpoints/deepseek-1.3B_sub1_seg1_sum0/checkpoint-10000"}
+"fintuned_6144": "/mnt/data2/shared-data/autocompressors/checkpoints/deepseek-1.3B_sub1_seg1_sum0/checkpoint-10000",
+"lora_copy_chunk": "/mnt/data2/shared-data/autocompressors/checkpoints/deepseek-1.3B_sub3_seg2_sum50_copy_chunk/checkpoint-10000",
+"lora_copy_chunk_warm": "/mnt/data2/shared-data/autocompressors/checkpoints/deepseek-1.3B_sub3_seg2_sum50_copy_chunk_warm/checkpoint-9900"
+}
