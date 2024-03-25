@@ -76,8 +76,9 @@ def main(args):
     access_key_id, secret_access_key = get_aws_credentials_local(
         "configs/aws_credentials"
     )
-    os.environ["AWS_ACCESS_KEY_ID"] = access_key_id
-    os.environ["AWS_SECRET_ACCESS_KEY"] = secret_access_key
+    if (access_key_id is not None) and (access_key_id is not None):
+        os.environ["AWS_ACCESS_KEY_ID"] = access_key_id
+        os.environ["AWS_SECRET_ACCESS_KEY"] = secret_access_key
     config_path = args.config
     if config_path is None:
         config_path = "configs/config.yaml"

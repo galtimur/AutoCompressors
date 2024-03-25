@@ -15,9 +15,10 @@ from eval_ppl import evaluate_ppl_red_pajamas, evaluate_base_model
 
 
 class LcaPythonCompletionDataset(Dataset):
-    dataset_name = "jenyag/repo-codegen-py-py-context-path-distance"
 
     def __init__(self) -> None:
+
+        self.dataset_name = "jenyag/repo-codegen-py-py-context-path-distance"
         dataset = load_dataset(self.dataset_name)["test"]
         self.samples = []
         for sample in dataset:
