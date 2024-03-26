@@ -150,9 +150,12 @@ def main(args):
             max_train_samples = dataset_length
         print(f"Total number of training data: {dataset_length}")
 
-    example = next(iter(train_dataset))
-    context_size = len(example["input_ids"])
-    segment_size = context_size // (
+    if training_args.max_context_length is not None:
+        context_size = training_args.max_context_length
+    else:
+        example = next(iter(train_dataset))
+        context_size = len(example["input_ids"])
+    training_args.segment_size = context_size // (
         training_args.training_substeps * training_args.segments_per_substep
     )
 
@@ -296,7 +299,9 @@ def main(args):
         model_args.lora = False
         model_args.lora_path = False
 
+    do_lora = False
     if model_args.lora or model_args.lora_path:
+        do_lora = True
         from peft import PeftModel, get_peft_model, LoraConfig, TaskType
 
         if model_args.lora_path:
@@ -343,7 +348,7 @@ def main(args):
             lm_datasets["val"],
             batch_size=training_args.eval_batch_size,
             max_samples=training_args.eval_samples,
-            split_size=segment_size,
+            split_size=training_args.segment_size,
             streaming=data_args.streaming_data,
         )
     ]
@@ -356,6 +361,8 @@ def main(args):
             )
         )
 
+    # If we train full model, the optimizer step is too large to save it. We do not need it.
+    training_args.save_only_model = not (training_args.train_embed_only or do_lora)
     trainer = SubstepTrainer(
         model=model,
         args=training_args,

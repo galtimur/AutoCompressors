@@ -29,7 +29,17 @@ class TrainingArguments(HfTrainingArguments):
         metadata={"help": "If True, summary tokens of all past segments will be accumulated "
                           "when passed to the next segment."}
     )
+    max_context_length: Optional[int] = field(
+        default=None, metadata={"help": ("max length of the context")},)
 
+    only_last_chunk_loss: bool = field(
+        default=False,
+        metadata={"help": "Calculate only loss on last chunk. Do not calculate loss on other chunks"}
+    )
+    copy_last_chunk: bool = field(
+        default=False,
+        metadata={"help": "Copy last chunk to the first chunk"}
+    )
     training_substeps: Optional[int] = field(
         default=1,
         metadata={"help": "How often to detach gradients (1 substep=standard training)"}

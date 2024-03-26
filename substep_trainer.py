@@ -41,6 +41,14 @@ def copy_segment(input_ids, segment_size: int, n_to_copy: int):
 class DataCollator:
     """Simple data collator for language modeling with padding."""
     def __init__(self, tokenizer, additional_args):
+        if additional_args.max_context_length is not None:
+            self.max_length = additional_args.max_context_length
+        else:
+            # in that case, input would not be cut
+            self.max_length = 0
+        self.only_last_chunk_loss = additional_args.only_last_chunk_loss
+        self.copy_last_chunk = additional_args.copy_last_chunk
+        self.segment_size = additional_args.segment_size
         self.tokenizer = tokenizer
         self.additional_args = additional_args
         self.pad_token_id = self.tokenizer.bos_token_id
@@ -76,12 +84,19 @@ class DataCollator:
         # if self.segment_to_copy < 5:
         #     input_ids = copy_segment(input_ids, 1024, self.segment_to_copy)
         #     labels = copy_segment(labels, 1024, self.segment_to_copy)
-        # input_ids = copy_segment(input_ids, 1024, 0)
-        # labels = copy_segment(labels, 1024, 0)
+        input_ids = input_ids[:, -self.max_length:]
+        attention_mask = attention_mask[:, -self.max_length:]
+        labels = labels[:, -self.max_length:]
+        if self.only_last_chunk_loss:
+            labels[:, :-self.segment_size] = -100
 
-        return dict(input_ids=input_ids,
-                    attention_mask=attention_mask,
-                    labels=labels)
+        if self.copy_last_chunk:
+            input_ids = copy_segment(input_ids, 1024, 0)
+            labels = copy_segment(labels, 1024, 0)
+
+        return dict(input_ids=input_ids[:, -self.max_length:],
+                    attention_mask=attention_mask[:, -self.max_length:],
+                    labels=labels[:, -self.max_length:])
 
 
 class SubstepTrainer(BaseTrainer):
