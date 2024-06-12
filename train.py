@@ -3,6 +3,7 @@ import math
 import os
 import sys
 import torch
+import argparse
 
 import datasets
 import transformers
@@ -10,16 +11,24 @@ from transformers import (
     CONFIG_MAPPING,
     AutoConfig,
     AutoTokenizer,
-    HfArgumentParser,
     set_seed,
 )
 
 from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
 
-from args import TrainingArguments, ModelArguments, DataTrainingArguments
 from substep_trainer import SubstepTrainer
-from utils import get_last_checkpoint_or_last_model, parse_checkpoint_step
+from base_trainer import EvalCallback, AWSSaver
+from utils import (
+    get_last_checkpoint_or_last_model,
+    parse_checkpoint_step,
+    wandb_setup,
+    get_aws_credentials_local,
+)
+from load_model_from_ckpt import load_check_merging
+from config_parser import parse_config
+import shutil
+from pathlib import Path
 
 from data import load_raw_dataset, preprocess_datasets, load_preprocessed_datasets
 
@@ -28,24 +37,57 @@ from fast_attention import patch_opt
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.22.0")
 
-require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/language-modeling/requirements.txt")
+require_version(
+    "datasets>=1.8.0",
+    "To fix: pip install -r examples/pytorch/language-modeling/requirements.txt",
+)
 
 logger = logging.getLogger(__name__)
 
+def reset_parameters(model):
+    for layer in model.modules():
+        if hasattr(layer, 'reset_parameters'):
+            layer.reset_parameters()
+        else:
+            for module in layer.modules():
+                if hasattr(module, 'reset_parameters'):
+                    module.reset_parameters()
 
-def main():
+def save_base_model(config_path, trainer):
+    base_model_folder = Path(os.path.join(trainer.args.output_dir, "base_model"))
+    Path.mkdir(base_model_folder, exist_ok=True, parents=True)
+    shutil.copy2(config_path, os.path.join(base_model_folder, "config_base_model.yaml"))
+    trainer.save_model(output_dir=base_model_folder)
+
+
+def main(args):
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
-    if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
-        # If we pass only one argument to the script and it's the path to a json file,
-        # let's parse it to get our arguments.
-        model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
-    else:
-        model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    # parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
+    # if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
+    #     # If we pass only one argument to the script and it's the path to a json file,
+    #     # let's parse it to get our arguments.
+    #     model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+    # else:
+    #     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
+    access_key_id, secret_access_key = get_aws_credentials_local(
+        "configs/aws_credentials"
+    )
+    if (access_key_id is not None) and (access_key_id is not None):
+        os.environ["AWS_ACCESS_KEY_ID"] = access_key_id
+        os.environ["AWS_SECRET_ACCESS_KEY"] = secret_access_key
+    config_path = args.config
+    if config_path is None:
+        config_path = "configs/config.yaml"
+    model_args, data_args, training_args, merge_config = parse_config(config_path, args)
+    model_args.use_kv = training_args.use_kv
+    print(merge_config)
+
+    # import pydevd_pycharm
+    # pydevd_pycharm.settrace('localhost', port=2000, stdoutToServer=True, stderrToServer=True)
     # Setup logging
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
@@ -67,29 +109,52 @@ def main():
     )
     logger.info(f"Training/evaluation parameters {training_args}")
 
-
-
     # load_datasets
     if not training_args.do_train:
         data_args.preprocessed_train_datasets = []
 
-    if data_args.preprocessed_train_datasets + data_args.preprocessed_validation_datasets:
+    if (
+        data_args.preprocessed_train_datasets
+        + data_args.preprocessed_validation_datasets
+    ):
         print("train dataset", data_args.preprocessed_train_datasets)
         print("validation dataset", data_args.preprocessed_validation_datasets)
 
-        lm_datasets = load_preprocessed_datasets(data_args, model_args)
+        lm_datasets, dataset_length = load_preprocessed_datasets(data_args, model_args)
     else:
+        print("!!! Loading Raw dataset !!!")
         raw_datasets = load_raw_dataset(data_args, model_args)
-        lm_datasets = preprocess_datasets(raw_datasets, tokenizer, data_args, training_args)
+        lm_datasets = preprocess_datasets(
+            raw_datasets, tokenizer, data_args, training_args
+        )
 
     if training_args.do_train:
         if "train" not in lm_datasets:
             raise ValueError("--do_train requires a train dataset")
-        train_dataset = lm_datasets["train"]
+        if data_args.streaming_data:
+            # Think about buffer size. Is it good?
+            train_dataset = lm_datasets[
+                "train"
+            ]  # .shuffle(buffer_size=10_000, seed=42)
+        else:
+            train_dataset = lm_datasets["train"]  # .shuffle(seed=42)
+        if data_args.streaming_data:
+            training_args.max_steps = dataset_length // training_args.total_batch_size
+        # else:
+        #     dataset_length = len(train_dataset)
         if data_args.max_train_samples is not None:
-            max_train_samples = min(len(train_dataset), data_args.max_train_samples)
-            train_dataset = train_dataset.select(range(max_train_samples))
-        print(f"Total number of training data: {len(train_dataset)}")
+            max_train_samples = min(dataset_length, data_args.max_train_samples)
+            if not data_args.streaming_data:
+                train_dataset = train_dataset.select(range(max_train_samples))
+        else:
+            max_train_samples = dataset_length
+        print(f"Total number of training data: {dataset_length}")
+
+    example = next(iter(train_dataset))
+    context_size = len(example["input_ids"])
+    segment_size = context_size // (
+        training_args.training_substeps * training_args.segments_per_substep
+    )
 
     if training_args.do_eval:
         # max eval sample deleted
@@ -97,26 +162,33 @@ def main():
         for key in lm_datasets.keys():
             if "validation" in key:
                 if data_args.max_eval_samples is not None:
-                    max_eval_samples = min(data_args.max_eval_samples, len(lm_datasets[key]))
+                    max_eval_samples = min(
+                        data_args.max_eval_samples, len(lm_datasets[key])
+                    )
                     eval_dataset[key] = lm_datasets[key].select(range(max_eval_samples))
                 else:
                     eval_dataset[key] = lm_datasets[key]
 
-
-
     # Detecting last checkpoint.
     last_checkpoint = None
     if training_args.resume_from_checkpoint:
-        last_checkpoint = get_last_checkpoint_or_last_model(training_args.output_dir)
-        if last_checkpoint is None:
-            print(f"Didn't find a checkpoint in {training_args.output_dir}. Starting training from scratch")
+        if training_args.checkpoint_path is None:
+            last_checkpoint = get_last_checkpoint_or_last_model(
+                training_args.output_dir
+            )
         else:
-            print(f"Found checkpoint {last_checkpoint}. Using this checkpoint to resume training.")
-
+            last_checkpoint = training_args.checkpoint_path
+        if last_checkpoint is None:
+            print(
+                f"Didn't find a checkpoint in {training_args.output_dir}. Starting training from scratch"
+            )
+        else:
+            print(
+                f"Found checkpoint {last_checkpoint}. Using this checkpoint to resume training."
+            )
 
     # Set seed before initializing model.
     set_seed(training_args.seed)
-
 
     tokenizer_kwargs = {
         "cache_dir": model_args.cache_dir,
@@ -126,9 +198,13 @@ def main():
     }
 
     if model_args.tokenizer_name:
-        tokenizer = AutoTokenizer.from_pretrained(model_args.tokenizer_name, **tokenizer_kwargs)
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_args.tokenizer_name, **tokenizer_kwargs
+        )
     elif model_args.model_name_or_path:
-        tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path, **tokenizer_kwargs)
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_args.model_name_or_path, **tokenizer_kwargs
+        )
     else:
         raise ValueError(
             "You are instantiating a new tokenizer from scratch. This is not supported by this script."
@@ -142,7 +218,9 @@ def main():
     }
 
     if model_args.model_name_or_path:
-        config = AutoConfig.from_pretrained(model_args.model_name_or_path, **config_kwargs)
+        config = AutoConfig.from_pretrained(
+            model_args.model_name_or_path, **config_kwargs
+        )
     elif model_args.config_name:
         config = AutoConfig.from_pretrained(model_args.config_name, **config_kwargs)
     else:
@@ -158,28 +236,47 @@ def main():
     config.summary_length = training_args.summary_length
     config.accumulate_summary = training_args.accumulate_summary
     config.segment_gradient_checkpointing = training_args.segment_gradient_checkpointing
+    config.use_kv = training_args.use_kv
 
     # Create model
-    if "llama" in (model_args.model_name_or_path or model_args.config_name).lower():
-        from auto_compressor import LlamaAutoCompressorModel
+    is_llama = (
+        "llama" in (model_args.model_name_or_path or model_args.config_name).lower()
+    )
+    is_deepseek = (
+        "deepseek" in (model_args.model_name_or_path or model_args.config_name).lower()
+    )
+    if is_llama or is_deepseek:
+        from auto_compressor import LlamaAutoCompressorModel as AutoCompressorModel
     else:
         from auto_compressor import AutoCompressorModel
 
     if model_args.model_name_or_path:
-        half_dtype = (torch.bfloat16 if training_args.bf16 else (torch.float16 if training_args.fp16 else None))
-        model = LlamaAutoCompressorModel.from_pretrained(
+        half_dtype = (
+            torch.bfloat16
+            if training_args.bf16
+            else (torch.float16 if training_args.fp16 else None)
+        )
+        if model_args.lora or model_args.lora_path or training_args.bf16:
+            model_dtype = half_dtype
+        else:
+            model_dtype = None
+        model = AutoCompressorModel.from_pretrained(
             model_args.model_name_or_path,
             from_tf=bool(".ckpt" in model_args.model_name_or_path),
             config=config,
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
             use_auth_token=True if model_args.use_auth_token else None,
-            torch_dtype=(half_dtype if model_args.lora or model_args.lora_path else None),
+            torch_dtype=model_dtype,
         )
     else:
-        model = LlamaAutoCompressorModel.from_config(config)
-        n_params = sum(dict((p.data_ptr(), p.numel()) for p in model.parameters()).values())
-        logger.info(f"Training new model from scratch - Total size={n_params/2**20:.2f}M params")
+        model = AutoCompressorModel.from_config(config)
+        n_params = sum(
+            dict((p.data_ptr(), p.numel()) for p in model.parameters()).values()
+        )
+        logger.info(
+            f"Training new model from scratch - Total size={n_params/2**20:.2f}M params"
+        )
 
     # Extend positional embeddings
     if training_args.max_position_embeddings is not None:
@@ -187,16 +284,21 @@ def main():
         max_pos = model.config.max_position_embeddings
         new_max_pos = training_args.max_position_embeddings
         multiply = math.ceil(new_max_pos / embed.num_embeddings)
-        embed.weight.data = torch.cat([
-            embed.weight[:-max_pos],
-            embed.weight[-max_pos:].repeat(multiply, 1)
-        ], dim=0)
+        embed.weight.data = torch.cat(
+            [embed.weight[:-max_pos], embed.weight[-max_pos:].repeat(multiply, 1)],
+            dim=0,
+        )
         embed.num_embeddings = embed.weight.size(0)
         model.config.max_position_embeddings = max_pos * multiply
         logger.info(f"Positional embeddings increased to {embed.num_embeddings}")
 
+    if training_args.train_embed_only:
+        model_args.lora = False
+        model_args.lora_path = False
+
     if model_args.lora or model_args.lora_path:
         from peft import PeftModel, get_peft_model, LoraConfig, TaskType
+
         if model_args.lora_path:
             logger.info(f"Loading LoRA model from {model_args.lora_path}")
             model = PeftModel.from_pretrained(model, model_args.lora_path)
@@ -218,34 +320,86 @@ def main():
         logger.info("Patching (experimental) fast attention")
         patch_opt(model)
 
-
-
+    optimizer = None
+    if training_args.train_embed_only:
+        num_trainable_parameters = 0
+        for name, param in model.named_parameters():
+            if "embed_summary" in name.lower():
+                param.requires_grad = True
+                num_trainable_parameters += param.numel()
+            else:
+                param.requires_grad = False
+        print(f"Number of trainable parameters = {num_trainable_parameters}")
+        optimizer = torch.optim.AdamW(
+            model.embed_summary.parameters(), lr=training_args.learning_rate
+        )
+        # num_training_steps = len(train_dataset) * training_args.num_train_epochs
+        # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=training_args.warmup_steps, num_training_steps=num_training_steps)
     tokenizer.padding = True
-    # Initialize our Trainer
+
+    # TODO add run_id
+    additional_callbacks = [
+        EvalCallback(
+            lm_datasets["val"],
+            batch_size=training_args.eval_batch_size,
+            max_samples=training_args.eval_samples,
+            split_size=segment_size,
+            streaming=data_args.streaming_data,
+        )
+    ]
+    if data_args.upload_aws:
+        additional_callbacks.append(
+            AWSSaver(
+                s3_bucket=data_args.s3_bucket,
+                s3_prefix=data_args.s3_prefix,
+                cred_file=data_args.s3_cred_filepath,
+            )
+        )
+
     trainer = SubstepTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
         eval_dataset=eval_dataset if training_args.do_eval else None,
         tokenizer=tokenizer,
+        callbacks=additional_callbacks,  # GradientLoggerCallback
+        optimizers=(optimizer, None),
     )
 
+    # print(trainer.state, trainer.state.is_local_process_zero, accelerator.state.process_index)
     if last_checkpoint is not None:
-        trainer._load_from_checkpoint(last_checkpoint)
+        if training_args.train_embed_only:
+            load_check_merging(last_checkpoint, trainer)
+        else:
+            trainer._load_from_checkpoint(last_checkpoint)
+
+        process_indx = trainer.accelerator.state.process_index
+
+        if merge_config["resume_run"]:
+            wandb_id_file = os.path.join(last_checkpoint, "wandb_id")
+            if os.path.exists(wandb_id_file):
+                with open(wandb_id_file, "r") as f:
+                    run_id = f.read()
+
+                wandb_setup(run_id)
+                print(f"resuming Wandb run id = {run_id}")
+            else:
+                print(f"Could not find run id in ckpt folder. Initializing new run")
+
+        print(f"--- Model loaded in process {process_indx} ---")
     else:
         logger.info("Using a model loaded from scratch!")
-
     # Training
     if training_args.do_train:
+        save_base_model(config_path, trainer)
+        trainer.saved_full_model = True
         train_result = trainer.train(resume_from_checkpoint=last_checkpoint)
+        trainer.saved_full_model = False
         trainer.save_model()  # Saves the tokenizer too for easy upload
 
         metrics = train_result.metrics
 
-        max_train_samples = (
-            data_args.max_train_samples if data_args.max_train_samples is not None else len(train_dataset)
-        )
-        metrics["train_samples"] = min(max_train_samples, len(train_dataset))
+        metrics["train_samples"] = max_train_samples
 
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
@@ -282,5 +436,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
-
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", help="Path to the config file")
+    parser.add_argument("--suffix", help="Any suffix for run name")
+    parser.add_argument(
+        "--dev", action="store_true", help='Dev mode, adds "test" to the prefix'
+    )
+    args = parser.parse_args()
+    main(args)

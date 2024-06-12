@@ -7,3 +7,5 @@ preprocessed_*
 new_preprocessed_*
 .bash_aliases
 checkpoints
+/wandb/
+/jettrain/

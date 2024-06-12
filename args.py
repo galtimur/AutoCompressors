@@ -12,6 +12,14 @@ class TrainingArguments(HfTrainingArguments):
         default=None,
         metadata={"help": "The maximum position embedding per segment."}
     )
+    total_batch_size: Optional[int] = field(
+        default=1,
+        metadata={"help": "Size of the accumulated batch"}
+    )
+    eval_samples: Optional[int] = field(
+        default=300,
+        metadata={"help": "Number of samples to eval"}
+    )
     summary_length: int = field(
         default=0,
         metadata={"help": "Number of summary tokens. 0 allocates no space for summary tokens."}
@@ -30,6 +38,12 @@ class TrainingArguments(HfTrainingArguments):
         default=False,
         metadata={"help": "apply  strategy to determine substep lengths in each substep"}
     )
+
+    randomize_std: Optional[float] = field(
+        default=0.2,
+        metadata={"help": "std of the randomized size of the segments (in ratio of avg size)"}
+    )
+
     segments_per_substep: int = field(
         default=2,
         metadata={"help": "Number of substeps per segments when using --randomize_substep"}
@@ -47,6 +61,25 @@ class TrainingArguments(HfTrainingArguments):
         metadata={"help": "Use fast attention during training (experimental)"}
     )
 
+    train_embed_only: bool = field(
+        default=False,
+        metadata={"help": "Train only summary embeddings, freeze model"}
+    )
+
+    use_kv: bool = field(
+        default=False,
+        metadata={"help": "Pass info not from summary embeddings, but through cashed attn key-values"}
+    )
+
+    use_accelerate: bool = field(
+        default=False,
+        metadata={"help": "Whether to use accelerate for distributed training"}
+    )
+
+    checkpoint_path: Optional[int] = field(
+        default=None,
+        metadata={"help": "Path to checkpoint you want to load."}
+    )
 
 @dataclass
 class ModelArguments:
@@ -163,6 +196,11 @@ class DataTrainingArguments:
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
+
+    streaming_data: bool = field(
+        default=False, metadata={"help": "Whether to use streaming data withoud downloading whole dataset"}
+    )
+
     validation_split_percentage: Optional[int] = field(
         default=5,
         metadata={
@@ -181,6 +219,19 @@ class DataTrainingArguments:
     preprocessed_train_datasets: List[str] = field(default_factory=list)
     preprocessed_validation_datasets: List[str] = field(default_factory=list)
     add_special_tokens: Optional[bool] = field(default=False, metadata={"help": "Whether to add special tokens."})
+
+    upload_aws: bool = field(
+        default=False, metadata={"help": "Whether to upload checkpoint to AWS server."}
+    )
+    s3_bucket: Optional[str] = field(
+        default=None, metadata={"help": "AWS S3 bucket name"}
+    )
+    s3_prefix: Optional[str] = field(
+        default=None, metadata={"help": "AWS S3 prefix"}
+    )
+    s3_cred_filepath: Optional[str] = field(
+        default=None, metadata={"help": "Path to the aws credentials of files"}
+    )
 
     def __post_init__(self):
         # if self.dataset_name is None and self.train_file is None and self.validation_file is None:

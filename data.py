@@ -16,6 +16,7 @@ def load_raw_dataset(data_args, model_args):
             data_args.dataset_config_name,
             cache_dir=model_args.cache_dir,
             use_auth_token=True if model_args.use_auth_token else None,
+            streaming=data_args.streaming_data,
         )
         if "validation" not in raw_datasets.keys():
             raw_datasets["validation"] = datasets.load_dataset(
@@ -24,6 +25,7 @@ def load_raw_dataset(data_args, model_args):
                 split=f"train[:{data_args.validation_split_percentage}%]",
                 cache_dir=model_args.cache_dir,
                 use_auth_token=True if model_args.use_auth_token else None,
+                streaming=data_args.streaming_data,
             )
             raw_datasets["train"] = datasets.load_dataset(
                 data_args.dataset_name,
@@ -31,6 +33,7 @@ def load_raw_dataset(data_args, model_args):
                 split=f"train[{data_args.validation_split_percentage}%:]",
                 cache_dir=model_args.cache_dir,
                 use_auth_token=True if model_args.use_auth_token else None,
+                streaming=data_args.streaming_data,
             )
     else:
         data_files = {}
@@ -53,6 +56,7 @@ def load_raw_dataset(data_args, model_args):
             data_files=data_files,
             cache_dir=model_args.cache_dir,
             use_auth_token=True if model_args.use_auth_token else None,
+            streaming=data_args.streaming_data,
             **dataset_args,
         )
 
@@ -64,6 +68,7 @@ def load_raw_dataset(data_args, model_args):
                 split=f"train[:{data_args.validation_split_percentage}%]",
                 cache_dir=model_args.cache_dir,
                 use_auth_token=True if model_args.use_auth_token else None,
+                streaming=data_args.streaming_data,
                 **dataset_args,
             )
             raw_datasets["train"] = datasets.load_dataset(
@@ -72,6 +77,7 @@ def load_raw_dataset(data_args, model_args):
                 split=f"train[{data_args.validation_split_percentage}%:]",
                 cache_dir=model_args.cache_dir,
                 use_auth_token=True if model_args.use_auth_token else None,
+                streaming=data_args.streaming_data,
                 **dataset_args,
             )
 
@@ -206,40 +212,69 @@ def load_preprocessed_datasets(data_args, model_args):
     assert data_args.preprocessed_train_datasets is not None
     assert data_args.preprocessed_validation_datasets is not None
     d = {}
+    num_samples_total = 0
     for train_file in data_args.preprocessed_train_datasets:
         name = os.path.basename(train_file).split(".")[0]
-        if os.path.exists(train_file):
+        if train_file.startswith("s3://"):
+            # TODO this can be a problem with multiGPU setup. DO not use it in this case.
+            print("Loading TRAIN dataset from AWS")
+            data = datasets.load_from_disk(train_file)
+        elif os.path.exists(train_file):
             data = datasets.load_from_disk(train_file)
         else:
             data = datasets.load_dataset(
                 train_file,
                 split="train",
                 cache_dir=model_args.cache_dir,
-                use_auth_token=True if model_args.use_auth_token else None
+                use_auth_token=True if model_args.use_auth_token else None,
+                streaming=data_args.streaming_data
             )
         d[f"train-{name}"] = data
-        print(f"Loaded {train_file} training data, {len(data)} examples")
+        if not data_args.streaming_data:
+            num_samples = len(data)
+            print(f"Loaded {train_file} training data, {num_samples} examples")
+        else:
+            num_samples = data.info.splits["train"].num_examples
+            print(f"Streaming training data, {num_samples} examples. Dataset {train_file}")
+        num_samples_total += num_samples
 
     for valid_file in data_args.preprocessed_validation_datasets:
         name = os.path.basename(valid_file).split(".")[0]
-        if os.path.exists(train_file):
+        if valid_file.startswith("s3://"):
+            print("Loading VAL dataset from AWS")
+            data = datasets.load_from_disk(valid_file)
+        elif os.path.exists(valid_file):
             data = datasets.load_from_disk(valid_file)
         else:
             data = datasets.load_dataset(
                 valid_file,
                 split="test",
                 cache_dir=model_args.cache_dir,
-                use_auth_token=True if model_args.use_auth_token else None
+                use_auth_token=True if model_args.use_auth_token else None,
+                streaming = data_args.streaming_data
             )
+        if not data_args.streaming_data:
+            num_samples = len(data)
+            print(f"Loaded {valid_file} training data, {num_samples} examples")
+        else:
+            num_samples = data.info.splits["test"].num_examples
+            print(f"Streaming validation data, {num_samples} examples. Dataset {valid_file}")
         d[f"validation-{name}"] = data
-        print(f"Loaded {valid_file} validation data, {len(data)} examples")
 
 
     train_data = []
+    val_data = []
     for key in d.keys():
         if key.startswith("train"):
             train_data.append(d[key])
-    d["train"] = datasets.concatenate_datasets(train_data)
+        if key.startswith("validation"):
+            val_data.append(d[key])
+    if len(train_data) > 0:
+        d["train"] = datasets.concatenate_datasets(train_data)
+    if len(val_data) > 0:
+        d["val"] = datasets.concatenate_datasets(val_data)
+    else:
+        d["val"] = None
 
     lm_datasets = datasets.dataset_dict.DatasetDict(d)
-    return lm_datasets
+    return lm_datasets, num_samples_total

@@ -18,12 +18,31 @@ logger = logging.getLogger(__name__)
 
 PastKVType = Optional[Tuple[Tuple[torch.FloatTensor]]]
 
+def cut_past_kv(past_kv: PastKVType | None, length: int):
+    if past_kv is None:
+        return None
+    return tuple([(past_kv_layer[0][:, -length:], length) for past_kv_layer in past_kv])
+
+def accum_past_kv(past_key_values: PastKVType, new_past_kv: PastKVType):
+
+    if past_key_values is None:
+        return new_past_kv
+
+    past_key_values_agg = []
+    for past_kv_layer, new_past_kv_layer in zip(past_key_values, new_past_kv):
+        new_len = past_kv_layer[1] + new_past_kv_layer[1]
+        past_kv_layer_agg = torch.cat([past_kv_layer[0], new_past_kv_layer[0]], dim=1)
+        past_key_values_agg.append((past_kv_layer_agg, new_len))
+
+    return tuple(past_key_values_agg)
+
 @dataclass
 class SummaryConfig:
     """Keep track of token constitution of current input sequence"""
     softprompt_length: int = 0
     past_key_values_softprompt_length: int = 0
     summary_length: int = 0
+    use_kv: bool = False
 
     def reset(self):
         self.softprompt_length = 0
@@ -44,6 +63,13 @@ class AutoCompressorMixin:
         assert hasattr(self.config, 'summary_length'), "Compressor requires a summary_length config parameter"
 
         self.summary_config = SummaryConfig()
+        # To allow backwards compatibility
+        if hasattr(config, 'use_kv'):
+            self.summary_config.use_kv = config.use_kv
+            self.use_kv = config.use_kv
+        else:
+            self.use_kv = False
+        self.first_generate = True
 
         if config.summary_length > 0:
             self.embed_summary = nn.Embedding(config.summary_length, self.get_input_embeddings().embedding_dim)
@@ -112,6 +138,7 @@ class AutoCompressorMixin:
                 return_dict=True,)
 
         if segment_gradient_checkpointing:
+            # TODO we did not altered this branch
             outputs = torch.utils.checkpoint.checkpoint(
                 decoder, segment_embeds, segment_attention_mask, past_key_values,
                 softprompt_length, past_key_values_softprompt_length, summary_length,
@@ -126,7 +153,10 @@ class AutoCompressorMixin:
             outputs.last_hidden_state[:, softprompt_length:total_length - summary_length]
         )
         new_softprompt = outputs.last_hidden_state[:, total_length - summary_length:]
-
+        # If we use keys-values, we ommit softprompts in model input
+        if self.use_kv:
+            new_softprompt = new_softprompt[:, :0, :]
+            outputs.past_key_values = cut_past_kv(outputs.past_key_values, summary_length)
         return outputs, segment_last_hiddens, new_softprompt
 
     def get_past_key_values_len(self, past_key_values):
@@ -153,8 +183,10 @@ class AutoCompressorMixin:
             # Replace softprompt in direct argument with the softprompt in past_key_values
             past_key_values, softprompt = past_key_values["past_key_values"], past_key_values["softprompt"]
             past_key_values_softprompt_length = softprompt.size(1)
+            # output_softprompt = False
         else:
             past_key_values_softprompt_length = 0
+            # output_softprompt = True
 
         past_key_values_length = self.get_past_key_values_len(past_key_values) - past_key_values_softprompt_length
 
@@ -174,8 +206,9 @@ class AutoCompressorMixin:
         else:
             summary_token_embeds = inputs_embeds[:,:0]
 
-        # If no past_key_values are given, we will process the sequence in multiple segments
-        if past_key_values is None:
+        # If no past_key_values are given, or we use past key-values in architecture,
+        # we will process the sequence in multiple segments
+        if past_key_values is None or self.use_kv:
             segment_lengths = segment_lengths if segment_lengths is not None else input_ids.size(1)
 
             if attention_mask is None:
@@ -212,7 +245,8 @@ class AutoCompressorMixin:
         output_attentions_list = []
         output_hidden_states_list = []
 
-        if softprompt is None:
+        # If we use keys-values, we ommit softprompts in model input
+        if softprompt is None or self.use_kv:
             softprompt = inputs_embeds[:,:0,:]
 
         for step, summary_token_embeds in enumerate(summary_token_embeds_list):
@@ -231,18 +265,22 @@ class AutoCompressorMixin:
 
             if self.config.accumulate_summary:
                 softprompt = torch.cat([softprompt, new_softprompt], dim=1)
+                if self.use_kv:
+                    past_key_values = accum_past_kv(past_key_values, outputs.past_key_values)
             elif new_softprompt.size(1) > 0:
                 softprompt = new_softprompt
 
             output_attentions_list.append(outputs.attentions)
             output_hidden_states_list.append(outputs.hidden_states)
 
-            # No past key values after first step
-            past_key_values = None
-            past_key_values_softprompt_length = 0
+            if not self.use_kv:
+                # No past key values after first step
+                past_key_values = None
+                past_key_values_softprompt_length = 0
 
-        # Output past values of last segment
-        past_key_values = outputs.past_key_values
+        if not self.use_kv:
+            # Output past values of last segment
+            past_key_values = outputs.past_key_values
 
         # Reset placeholder positions
         self.summary_config.reset()

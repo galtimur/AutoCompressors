@@ -3,10 +3,11 @@ import os
 
 from base_trainer import BaseTrainer
 import math
+import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import Dataset
-
+from utils import calc_grad
 
 from transformers.trainer_utils import EvalPrediction
 
@@ -25,6 +26,17 @@ from transformers.utils import logging
 
 logger = logging.get_logger(__name__)
 
+def convert_past_kv_bfloat_and_detach(past_kv):
+    if past_kv is None:
+        return None
+    return tuple([(past_kv_layer[0].detach().bfloat16(), past_kv_layer[1]) for past_kv_layer in past_kv])
+
+def copy_segment(input_ids, segment_size: int, n_to_copy: int):
+    s = segment_size
+    n = n_to_copy
+    input_ids[:, n * s:(n + 1) * s] = input_ids[:, -s:]
+
+    return input_ids
 
 class DataCollator:
     """Simple data collator for language modeling with padding."""
@@ -32,8 +44,11 @@ class DataCollator:
         self.tokenizer = tokenizer
         self.additional_args = additional_args
         self.pad_token_id = self.tokenizer.bos_token_id
+        self.counter = 0
+        self.segment_to_copy = 0
 
     def __call__(self, features: Any) -> Dict[str, Any]:
+        self.counter += 1
         bsz = len(features)
         max_length = max(len(feature["input_ids"]) for feature in features)
         # max_length = self.max_length
@@ -44,8 +59,26 @@ class DataCollator:
 
         for i, feature in enumerate(features):
             input_ids[i, :len(feature["input_ids"])] = torch.tensor(feature["input_ids"], dtype=torch.long)
-            attention_mask[i, :len(feature["input_ids"])] = torch.tensor(feature["attention_mask"], dtype=torch.long)
-            labels[i, :len(feature["input_ids"])] = torch.tensor(feature["labels"], dtype=torch.long)
+            if "attention_mask" in feature:
+                attention_mask[i, :len(feature["input_ids"])] = torch.tensor(feature["attention_mask"], dtype=torch.long)
+            else:
+                # TODO account for padding
+                attention_mask = torch.ones_like(input_ids)
+            if "labels" in feature:
+                labels[i, :len(feature["input_ids"])] = torch.tensor(feature["labels"], dtype=torch.long)
+            else:
+                # TODO account for padding
+                labels[i, : len(feature['input_ids'])] = input_ids[i, :len(feature['input_ids'])]
+
+        # if self.counter % 6000 == 0:
+        #     self.segment_to_copy += 1
+        #     print(self.segment_to_copy)
+        # if self.segment_to_copy < 5:
+        #     input_ids = copy_segment(input_ids, 1024, self.segment_to_copy)
+        #     labels = copy_segment(labels, 1024, self.segment_to_copy)
+        # input_ids = copy_segment(input_ids, 1024, 0)
+        # labels = copy_segment(labels, 1024, 0)
+
         return dict(input_ids=input_ids,
                     attention_mask=attention_mask,
                     labels=labels)
@@ -113,6 +146,7 @@ class SubstepTrainer(BaseTrainer):
 
         total_loss = 0
         softprompt = None
+        past_key_values = None
         metrics = {}
         for substep in range(self.args.training_substeps):
             input_slice, segment_lengths = self.segment_input(inputs, substep)
@@ -122,8 +156,10 @@ class SubstepTrainer(BaseTrainer):
                 out = model(**inputs, segment_lengths=sum(self.args.segment_lengths), use_cache=False)
                 softprompt = None
             else:
-                out = model(**input_slice, softprompt=softprompt, segment_lengths=segment_lengths, use_cache=False, output_softprompt=True)
+                out = model(**inputs, softprompt=softprompt, past_key_values=past_key_values, segment_lengths=segment_lengths,
+                      use_cache=self.args.use_kv, output_softprompt=True)
                 softprompt = out.softprompt
+                past_key_values = out.past_key_values["past_key_values"]
             loss = out.loss
             total_loss += loss
 
@@ -154,6 +190,7 @@ class SubstepTrainer(BaseTrainer):
         model: nn.Module,
         inputs: Dict[str, Union[torch.Tensor, Any]],
         softprompt: Optional[torch.FloatTensor] = None,
+        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         segment_lengths = None
         ) -> torch.Tensor:
         """Performs a training substep, after which softprompts are detached and gradients are accumulated"""
@@ -161,9 +198,12 @@ class SubstepTrainer(BaseTrainer):
         model.train()
         inputs = self._prepare_inputs(inputs)
         with self.compute_loss_context_manager():
-            out = model(**inputs, softprompt=softprompt, segment_lengths=segment_lengths, use_cache=False, output_softprompt=True)
+            out = model(**inputs, softprompt=softprompt, past_key_values=past_key_values, segment_lengths=segment_lengths, use_cache=self.args.use_kv, output_softprompt=True)
             loss = out.loss
-            softprompt = out.softprompt.detach()
+            # TODO fix it properly not to move bf16-fp32-bf16 every time
+            softprompt = out.softprompt.detach().bfloat16()
+            past_key_values = convert_past_kv_bfloat_and_detach(out.past_key_values["past_key_values"])
+        # TODO check that we pass n_gpu properly.
         if self.args.n_gpu > 1:
             loss = loss.mean()  # mean() to average on multi-gpu parallel training
 
@@ -171,16 +211,15 @@ class SubstepTrainer(BaseTrainer):
             # deepspeed handles loss scaling by gradient_accumulation_steps in its `backward`
             loss = loss / self.args.gradient_accumulation_steps
 
-        if self.do_grad_scaling:
-            self.scaler.scale(loss).backward()
-
-        elif self.deepspeed:
+        # if True or self.do_grad_scaling:
+        #     self.scaler.scale(loss).backward()
+        if self.deepspeed:
             # loss gets scaled under gradient_accumulation_steps in deepspeed
             loss = self.deepspeed.backward(loss)
         else:
-            loss.backward()
+            loss.backward() # TODO rewrite using accelerate
 
-        return loss.detach(), softprompt
+        return loss.detach(), softprompt, past_key_values
 
     def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> torch.Tensor:
         """One training step consists of many training_substeps.
@@ -189,10 +228,11 @@ class SubstepTrainer(BaseTrainer):
         although substeps also implicitly accumulated gradient."""
 
         total_loss = 0
-        softprompt=None
+        softprompt = None
+        past_key_values = None
         for substep in range(self.args.training_substeps):
             input_slice, segment_lengths = self.segment_input(inputs, substep)
-            loss, softprompt = self.training_substep(model, input_slice, softprompt, segment_lengths)
+            loss, softprompt, past_key_values = self.training_substep(model, input_slice, softprompt, past_key_values, segment_lengths)
             total_loss += loss
             self.loss_log[f"substep_{substep}"] += loss
             self.substep_count+=1
@@ -202,6 +242,8 @@ class SubstepTrainer(BaseTrainer):
             if self.log_count % self.args.gradient_accumulation_steps == 0:
                 self.substep_count = self.substep_count.to(loss.device)
                 self.loss_log["total_substeps"] = self._nested_gather(self.substep_count).sum().item()
+                grad_norm = calc_grad(model)
+                self.loss_log["grad_norm"] = grad_norm
                 for i in range(self.args.training_substeps):
                     self.loss_log[f"substep_{i}"] = self._nested_gather(self.loss_log[f"substep_{i}"]).mean().item()
                 self.log(self.loss_log)
@@ -211,7 +253,7 @@ class SubstepTrainer(BaseTrainer):
 
         return total_loss / self.args.training_substeps
 
-    def random_segment_lengths(self, input_ids, num_segments):
+    def random_segment_lengths_old(self, input_ids, num_segments, min_segment_length=5):
         """Returns a list of random segment lengths that sum up to num_segments"""
         max_positions = self.model.config.max_position_embeddings
         if num_segments > 1:
@@ -220,6 +262,8 @@ class SubstepTrainer(BaseTrainer):
             total_variable_length = input_ids.size(1) - min_segment_length * num_segments
             if num_segments - 1 > total_variable_length:
                 raise ValueError(f"The specified number of segments_per_substep cannot cover the entire input sequence.")
+            # This is brain fucking. More understadable is randint:
+            # breakpoints = torch.randint(total_variable_length, size = num_segments - 1)
             breakpoints = torch.multinomial(torch.ones(total_variable_length), num_segments - 1)
             segment_lengths = torch.diff(breakpoints.sort(-1).values,
                                         prepend=torch.tensor([0]),
@@ -229,15 +273,51 @@ class SubstepTrainer(BaseTrainer):
             segment_lengths = [input_ids.size(1)]
         return segment_lengths
 
+    def random_segment_lengths(self, input_ids, num_segments, min_segment_length=20):
+
+        """Returns a list of random segment lengths that sum up to num_segments
+        std: standard deviation of the segments length in terms of ratio of the average segment length
+        """
+        std = self.args.randomize_std
+        if num_segments > 1:
+
+            total_variable_length = input_ids.size(1) - min_segment_length * num_segments
+            if num_segments - 1 > total_variable_length:
+                raise ValueError(f"The specified number of segments_per_substep cannot cover the entire input sequence.")
+
+            av_size = total_variable_length/num_segments
+            window = av_size*std
+
+            # segment_lengths = np.random.normal(av_size, std, num_segments)
+            segment_lengths = np.random.uniform(av_size - window, av_size + window, num_segments)
+            excess = (sum(segment_lengths) - total_variable_length) / num_segments
+            segment_lengths = np.round(segment_lengths - excess).astype(int)
+            excess = sum(segment_lengths) - total_variable_length
+            segment_lengths[-1] -= excess
+            segment_lengths = (segment_lengths + min_segment_length).tolist()
+        else:
+            segment_lengths = [input_ids.size(1)]
+        return segment_lengths
+
+
     def segment_input(self, inputs, substep):
         """Returns the sliced inputs and the random segment lengths when randomize_substeps=True"""
         
-        # if using segment_lenghts, keep only the end segment of the inputs. This is useful for evaluation. During training, segment lengths should sum to the total block_size
+        # if using segment_lenghts, keep only the end segment of the inputs.
+        # This is useful for evaluation. During training, segment lengths should sum to the total block_size
         if not self.args.randomize_substeps:
             total_length = sum(self.args.segment_lengths) * self.args.training_substeps
             inputs["input_ids"] = inputs["input_ids"][:, -total_length:]
-            inputs["attention_mask"] = inputs["attention_mask"][:, -total_length:]
-            inputs["labels"] = inputs["labels"][:, -total_length:]
+            if "attention_mask" in inputs:
+                inputs["attention_mask"] = inputs["attention_mask"][:, -total_length:]
+            else:
+                # TODO account for padding
+                inputs["attention_mask"] = torch.ones_like(inputs["input_ids"])
+            if "labels" in inputs:
+                inputs["labels"] = inputs["labels"][:, -total_length:]
+            else:
+                # TODO account for padding
+                inputs["labels"] = inputs["input_ids"][:, -total_length:]
 
         slices = torch.linspace(0, inputs["input_ids"].shape[-1], steps=self.args.training_substeps + 1, device=inputs["input_ids"].device, dtype=torch.long)
         input_slice = {k: v[:, slices[substep]: slices[substep+1]] for k, v in inputs.items()}

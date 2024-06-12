@@ -46,16 +46,25 @@ Setup a new environment and install the most recent version of [pytorch](https:/
 followed by these libraries
 ```bash
 pip install packaging
-pip install transformers==4.35.0 datasets==2.14.4 sentencepiece==0.1.99 flash-attn==2.3.3 wandb
-# Flash rotary embeddings (requires setting correct CUDA_HOME variable)
-pip install git+https://github.com/Dao-AILab/flash-attention.git#subdirectory=csrc/rotary
-
+pip install torch==2.1.2 torchaudio==2.1.2 torchvision==0.16.2
+pip install -r requirements
 ```
 
+### Corrections to the original requirements:
+1. If you have CUDA <12 (my is 11.8), install
+``` pip install flash-attn==2.3.1.post1 ```
+https://github.com/Dao-AILab/flash-attention/issues/631#issuecomment-1820931085
+
+2. If you encounter problems with LocalFilesystem during dataset loading (for datasets 2.14.4),
+``` pip install --upgrade datasets ```
+3. transformers 4.35 does not have attribute do_grad_scaling and cause the falling.
+
 ### Training
-`train.sh` is the main method for training AutoCompressors and defines the most important hyperparameters for `train.py`.
-You may have adjust some setting, like the number GPUs, depending on the system.
-The script should be easy to get started with, since it uses pre-tokenized datasets from the huggingface hub.
+`accelerate launch --config_file configs/accelerate_4gpu.yaml train.py` is the main method for training AutoCompressors on multiple GPUs.
+Parameters are set in the configs/config.yaml. Parameters for hardware are set in configs/accelerate_4gpu.yaml.  
+For training on single GPU and debugging you can run `python train.py`.
+
+The script should be easy to get started with, since it uses pre-tokenized datasets from the huggingface hub.  
 
 #### Notes on Flash Attention
 We use Flash Attention which lowers the memory requirements during training substantially.
